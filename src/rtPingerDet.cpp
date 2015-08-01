@@ -421,13 +421,12 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
                 lastFreqUsed = freqBF;
             }
 
-            freqIdx = (freqBF / Fs) * nFFT;
+            freqIdx = (float)((float)freqBF / Fs) * nFFT;
             cout << "Freq: " << freqDet << " Pow : " << maxPow << " Call: " << numCalls << " Freq BF : " << freqBF << " freq index : " << freqIdx << endl;
         }
 
 
         /// Convert the incoming signal to its complex baseband form
-        freqIdx = 64;
         
         
         hib.sigAnalytic(filtData, analyticData, numSamples);
