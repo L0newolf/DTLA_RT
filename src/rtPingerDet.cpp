@@ -326,7 +326,7 @@ void beamform(float *dataReal, float *dataImag, float *bfoReal, float *bfoImag, 
         }    
         
         
-        tick();
+        
         for (int r = 0; r < NROWS; r++)
         {
             for (int c = 0; c < NCOLS; c++)
@@ -347,14 +347,13 @@ void beamform(float *dataReal, float *dataImag, float *bfoReal, float *bfoImag, 
 
             }
         }
-        timeKeep += tock();
-        runCount++;
+        
 
     }
 
     
 
-    cout << "Time to copy outputs : " << (timeKeep / runCount)*numLoops << endl << endl;
+    //cout << "Time to copy outputs : " << (timeKeep / runCount)*numLoops << endl << endl;
 }
 /*************************************************************************************************************************************/
 
@@ -385,8 +384,7 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
         bfoFinalReal[j] = 1.0;
     }
 
-    float dataReal[numSamples];
-    float dataImag[numSamples];
+    
 
     //std::fstream bfoFile("bfo_opt_cpp.txt", std::ios_base::out);
 
@@ -428,11 +426,30 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
 
         /// Convert the incoming signal to its complex baseband form
         
+        int samplesToUse = (int)(numSamples/SKIP_RATE);
+        float filtDataToUse[samplesToUse];
+        int counter = 0;
+        for(int j=0;j<numSamples;j++)
+        {
+            if (SKIP_RATE == 1)
+            {
+                filtDataToUse[j]=filtData[j];
+            }
+            else
+            {
+                if(j%SKIP_RATE)
+                {
+                    filtDataToUse[counter]=filtData[j];
+                    counter++;
+                }
+            }
+        }
+        hib.sigAnalytic(filtDataToUse, analyticData, samplesToUse);
         
-        hib.sigAnalytic(filtData, analyticData, numSamples);
-        
+        float dataReal[samplesToUse];
+        float dataImag[samplesToUse];
 
-        for (int i = 0; i < numSamples; i++)
+        for (int i = 0; i < samplesToUse; i++)
         {
             dataReal[i] = analyticData[i][0];
             dataImag[i] = analyticData[i][1];
@@ -441,7 +458,7 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
 
         //Beamform the resultant data
         
-        beamform(dataReal, dataImag, bfoFinalReal, bfoFinalImag, &sinValsAngles[freqIdx][i][0], &cosValsAngles[freqIdx][i][0], &sinValsSamples[freqIdx][i][0], &cosValsSamples[freqIdx][i][0], numSamples);
+        beamform(dataReal, dataImag, bfoFinalReal, bfoFinalImag, &sinValsAngles[freqIdx][i][0], &cosValsAngles[freqIdx][i][0], &sinValsSamples[freqIdx][i][0], &cosValsSamples[freqIdx][i][0], samplesToUse);
         
     }
     
@@ -463,7 +480,7 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
         }
     }
 
-    cout << "Max power detected at : " << rad2deg(angles[angleIdx]) << " degrees at time : " << numCalls + ((float)timeIdx / Fs) << " secs for frequency  : " << freqBF << endl;
+    cout << "Max power detected at : " << rad2deg(angles[angleIdx]) << " degrees at time : " << numCalls + ((float)(SKIP_RATE*timeIdx) / Fs) << " secs for frequency  : " << freqBF << endl;
 
     //bfoFile.close();
 
@@ -516,10 +533,13 @@ int main()
         for (int j = 0; j < NUMCHANNELS * samplesPerBlock; j++)
             sigFile >> curSig[j];
         
+        tick();
         detectPinger.detectPingerPos(curSig, samplesPerBlock, firCoeff, bfoFinalReal, bfoFinalImag, analyticData);
-        
+        timeKeep += tock();
+        runCount++;
     }
-    //cout << "Time to process 1 sec data : " << (timeKeep / runCount) << endl << endl;
+    
+    cout << "Time to process 1 sec data : " << (timeKeep / runCount) << endl << endl;
 
     delete(bfoFinalReal);
     delete(bfoFinalImag);
