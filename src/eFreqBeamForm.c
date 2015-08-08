@@ -48,8 +48,6 @@ int main(void)
   int i, a;
   epc_init();
 
-  e_memseg_t        extMemBuf;
-
   unsigned int ptr = 0x2000;
   dataReal = (float *)ptr;
   ptr += WINDOWPERCORE * sizeof(float);
@@ -71,7 +69,12 @@ int main(void)
 
   done = (int *)0x7500;
 
-  int idx;
+  int coreNum = getCoreNum(e_get_coreid());
+  int sizeBuf = WINDOWPERCORE * NUMANGLES * sizeof(float);
+
+  pmemBfoReal = (float *) (e_emem_config.base + 0x00000000 + coreNum * sizeBuf );
+  pmemBfoImag = (float *) (e_emem_config.base + 0x00010000 + coreNum * sizeBuf );
+
 
   while (1) 
   {
@@ -94,6 +97,14 @@ int main(void)
       }
        
     }
+
+    dst = (void *)pmemBfoReal;
+    src = (void *)bfoReal;
+    e_memcopy(dst, src, sizeBuf);
+
+    dst = (void *)pmemBfoImag;
+    src = (void *)bfoImag;
+    e_memcopy(dst, src, sizeBuf);
 
     (*(done)) = 0x00000001;
   }

@@ -34,7 +34,9 @@
 using namespace std;
 
 e_epiphany_t dev;
-
+e_mem_t      bfoRealERAM,     *pbfoRealERAM;
+e_mem_t      bfoImagERAM,     *pbfoImagERAM;
+extern e_platform_t e_platform;
 
 float sinValsAngles[nFFT][NUMCHANNELS][NUMANGLES];
 float cosValsAngles[nFFT][NUMCHANNELS][NUMANGLES];
@@ -113,12 +115,31 @@ void initBFCoeffs()
 
 int eInit(void)
 {
+    pbfoRealERAM     = &bfoRealERAM;
+    pbfoImagERAM     = &bfoImagERAM;
+
     if (e_init(NULL) != E_OK)
     {
         printf("\nERROR: Can't initialize Epiphany device!\n\n");
         return 1;
     }
-    e_reset_system();
+
+    if (E_OK != e_reset_system() ) 
+    {
+      fprintf(stderr, "\nWARNING: epiphinay system rest failed!\n\n");
+    }
+
+    if (E_OK != e_alloc(pbfoRealERAM,0x00000000, Fs*NUMANGLES*sizeof(float)))
+  {
+      fprintf(stderr, "\nERROR: Can't allocate Epiphany DRAM!\n\n");
+      return 1;
+  }
+
+  if (E_OK != e_alloc(pbfoImagERAM,0x00010000, Fs*NUMANGLES*sizeof(float)))
+  {
+      fprintf(stderr, "\nERROR: Can't allocate Epiphany DRAM!\n\n");
+      return 1;
+  }
 
     if (e_open(&dev, 0, 0, NROWS, NCOLS)) {
         printf("\nERROR: Can't establish connection to Epiphany device!\n\n");
@@ -140,6 +161,8 @@ int eInit(void)
 
 int eFree(void)
 {
+    e_free(pbfoRealERAM);
+    e_free(pbfoImagERAM);
 
     // Close connection to device
     if (e_close(&dev))
@@ -254,7 +277,7 @@ void beamform(float *dataReal, float *dataImag, float *bfoReal, float *bfoImag, 
     int offset = 0;
     unsigned int done[CORES], allDone = 0;
 
-    //cout<<"Loops per channel : "<<numLoops<<endl;
+    cout<<"Loops per channel : "<<numLoops<<endl;
 
     for (int i = 0; i < numLoops; i++) 
     {
@@ -326,12 +349,12 @@ void beamform(float *dataReal, float *dataImag, float *bfoReal, float *bfoImag, 
         }    
         
         
-        
+        tick();
         for (int r = 0; r < NROWS; r++)
         {
             for (int c = 0; c < NCOLS; c++)
             {
-                
+                /*
                 // read back results here into the bfo buffers
                 if (e_read(&dev, r, c, 0x2500, (void *)&bfoReal[offset * NUMANGLES + (r * NCOLS + c)*WINDOWPERCORE * NUMANGLES], WINDOWPERCORE * NUMANGLES * sizeof(float)) == E_ERR)
                 {
@@ -343,11 +366,15 @@ void beamform(float *dataReal, float *dataImag, float *bfoReal, float *bfoImag, 
                 {
                     cout << "ERROR : Failed to read data from shared memory" << endl;
                 }
+                */
                 
+                e_read(pbfoRealERAM , 0, 0, (off_t) (r * NCOLS + c)*WINDOWPERCORE * NUMANGLES * sizeof(float),  (void *)&bfoReal[offset * NUMANGLES + (r * NCOLS + c)*WINDOWPERCORE * NUMANGLES], WINDOWPERCORE * NUMANGLES * sizeof(float));
+                e_read(pbfoImagERAM , 0, 0, (off_t) (r * NCOLS + c)*WINDOWPERCORE * NUMANGLES * sizeof(float),  (void *)&bfoImag[offset * NUMANGLES + (r * NCOLS + c)*WINDOWPERCORE * NUMANGLES], WINDOWPERCORE * NUMANGLES * sizeof(float));
 
             }
         }
-        
+        timeKeep += tock();
+        runCount++;
 
     }
 
@@ -533,13 +560,12 @@ int main()
         for (int j = 0; j < NUMCHANNELS * samplesPerBlock; j++)
             sigFile >> curSig[j];
         
-        tick();
+        
         detectPinger.detectPingerPos(curSig, samplesPerBlock, firCoeff, bfoFinalReal, bfoFinalImag, analyticData);
-        timeKeep += tock();
-        runCount++;
+        
     }
     
-    cout << "Time to process 1 sec data : " << (timeKeep / runCount) << endl << endl;
+    cout << "Time to copy from ERAM: " << (timeKeep / runCount) << endl << endl;
 
     delete(bfoFinalReal);
     delete(bfoFinalImag);
