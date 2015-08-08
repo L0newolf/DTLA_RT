@@ -277,7 +277,7 @@ void beamform(float *dataReal, float *dataImag, float *bfoReal, float *bfoImag, 
     int offset = 0;
     unsigned int done[CORES], allDone = 0;
 
-    cout<<"Loops per channel : "<<numLoops<<endl;
+    //cout<<"Loops per channel : "<<numLoops<<endl;
 
     for (int i = 0; i < numLoops; i++) 
     {
@@ -291,6 +291,7 @@ void beamform(float *dataReal, float *dataImag, float *bfoReal, float *bfoImag, 
 
         
         // write to memeory
+        
         if (eDataWrite(&dataReal[offset], &dataImag[offset], &bfoReal[offset * NUMANGLES ], &bfoImag[offset * NUMANGLES], sinValsAngles, cosValsAngles, sinValsSamples, cosValsSamples, numSamples))
         {
             cout << "ERROR : Failed to write data to shared memory" << endl;
@@ -314,7 +315,7 @@ void beamform(float *dataReal, float *dataImag, float *bfoReal, float *bfoImag, 
 
         allDone = 0;
 
-        
+        tick(); 
         while (1)
         {
             for (int r = 0; r < NROWS; r++)
@@ -347,34 +348,13 @@ void beamform(float *dataReal, float *dataImag, float *bfoReal, float *bfoImag, 
                 usleep(10);
             }
         }    
-        
-        
-        tick();
-        for (int r = 0; r < NROWS; r++)
-        {
-            for (int c = 0; c < NCOLS; c++)
-            {
-                /*
-                // read back results here into the bfo buffers
-                if (e_read(&dev, r, c, 0x2500, (void *)&bfoReal[offset * NUMANGLES + (r * NCOLS + c)*WINDOWPERCORE * NUMANGLES], WINDOWPERCORE * NUMANGLES * sizeof(float)) == E_ERR)
-                {
-                    cout << "ERROR : Failed to read data from shared memory" << endl;
-                }
-                
-
-                if (e_read(&dev, r, c, 0x5000 , (void *)&bfoImag[offset * NUMANGLES + (r * NCOLS + c)*WINDOWPERCORE * NUMANGLES], WINDOWPERCORE * NUMANGLES * sizeof(float)) == E_ERR)
-                {
-                    cout << "ERROR : Failed to read data from shared memory" << endl;
-                }
-                */
-                
-                e_read(pbfoRealERAM , 0, 0, (off_t) (r * NCOLS + c)*WINDOWPERCORE * NUMANGLES * sizeof(float),  (void *)&bfoReal[offset * NUMANGLES + (r * NCOLS + c)*WINDOWPERCORE * NUMANGLES], WINDOWPERCORE * NUMANGLES * sizeof(float));
-                e_read(pbfoImagERAM , 0, 0, (off_t) (r * NCOLS + c)*WINDOWPERCORE * NUMANGLES * sizeof(float),  (void *)&bfoImag[offset * NUMANGLES + (r * NCOLS + c)*WINDOWPERCORE * NUMANGLES], WINDOWPERCORE * NUMANGLES * sizeof(float));
-
-            }
-        }
         timeKeep += tock();
         runCount++;
+
+        e_read(pbfoRealERAM , 0, 0, (off_t) 0,  (void *)&bfoReal[offset * NUMANGLES ], CORES * WINDOWPERCORE * NUMANGLES * sizeof(float));
+        e_read(pbfoImagERAM , 0, 0, (off_t) 0,  (void *)&bfoImag[offset * NUMANGLES ], CORES * WINDOWPERCORE * NUMANGLES * sizeof(float));
+        
+        
 
     }
 
@@ -565,7 +545,7 @@ int main()
         
     }
     
-    cout << "Time to copy from ERAM: " << (timeKeep / runCount) << endl << endl;
+    cout << "Time to run single block : " << (timeKeep / runCount) <<" num of cycles : "<<runCount << " Total time : "<< timeKeep << endl << endl;
 
     delete(bfoFinalReal);
     delete(bfoFinalImag);

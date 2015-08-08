@@ -18,7 +18,7 @@ LIBS = -le-hal -le-loader -lfftw3f -lm -lpthread
 ESDK=/opt/adapteva/esdk
 ELIBS=-L ${ESDK}/tools/host/lib
 EINCS=-I ${ESDK}/tools/host/include
-ELDF=${ESDK}/bsps/current/fast.ldf
+ELDF=${ESDK}/bsps/current/internal.ldf
 EHDF=${ESDK}/bsps/current/platform.hdf
 
 OBJ = bin/DTLA
