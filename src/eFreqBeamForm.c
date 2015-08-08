@@ -5,6 +5,8 @@
 
 #include "settings.h"
 
+#define e_memcopy(dst, src, size) e_dma_copy(dst, src, size)
+
 static void __attribute__((interrupt)) irqhandler(int n) {
   // do nothing
 }
@@ -23,9 +25,22 @@ static inline void epc_init(void) {
   e_irq_global_mask(E_FALSE);
 }
 
+static int getCoreNum( e_coreid_t coreid )
+{
+    int coreNum;
+  int row     = e_group_config.core_row;
+  int col     = e_group_config.core_col;
+  coreNum = row * e_group_config.group_cols + col;
+
+    return coreNum;
+}
+
 int main(void)
 
 {
+  float *pmemBfoReal,*pmemBfoImag;
+  void *src, *dst;
+
   int *done, *numSamples;
   float *dataReal, *dataImag, *sinValsAngles, *cosValsAngles, *sinValsSamples, *cosValsSamples;
 
