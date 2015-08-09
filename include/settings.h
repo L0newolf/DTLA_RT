@@ -7,7 +7,7 @@
 #define SPEED 1500
 #define Fs 24038
 #define pi 3.14159265
-#define WINDOWPERCORE 60
+#define WINDOWPERCORE 40
 #define WINDOWLEN CORES*WINDOWPERCORE
 #define SHMSIZE 0x00600000
 #define SHMOFFSET 0x01000000
@@ -25,4 +25,4 @@
 #define powerThreshold 0.1
 #define lambda 0.7
 
-#define SKIP_RATE 2
+#define SKIP_RATE 1
