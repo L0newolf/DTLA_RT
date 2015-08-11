@@ -315,7 +315,7 @@ void beamform(float *dataReal, float *dataImag, float *bfoReal, float *bfoImag, 
 
         allDone = 0;
 
-        tick(); 
+        
         while (1)
         {
             for (int r = 0; r < NROWS; r++)
@@ -348,8 +348,7 @@ void beamform(float *dataReal, float *dataImag, float *bfoReal, float *bfoImag, 
                 usleep(10);
             }
         }    
-        timeKeep += tock();
-        runCount++;
+        
 
         e_read(pbfoRealERAM , 0, 0, (off_t) 0,  (void *)&bfoReal[offset * NUMANGLES ], CORES * WINDOWPERCORE * NUMANGLES * sizeof(float));
         e_read(pbfoImagERAM , 0, 0, (off_t) 0,  (void *)&bfoImag[offset * NUMANGLES ], CORES * WINDOWPERCORE * NUMANGLES * sizeof(float));
@@ -393,7 +392,7 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
 
     
 
-    std::fstream bfoFile("bfo_opt_cpp.txt", std::ios_base::out);
+    //std::fstream bfoFile("bfo_opt_cpp.txt", std::ios_base::out);
 
     //BandPass the signal and find the frequency to be used for beamforming
     
@@ -478,7 +477,7 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
     for (int a = 0; a < Fs; a++) {
         for (int b = 0; b < NUMANGLES; b++) {
             tempVal = 20 * log10(sqrt((bfoFinalImag[NUMANGLES * a + b] * bfoFinalImag[NUMANGLES * a + b]) + (bfoFinalReal[NUMANGLES * a + b] * bfoFinalReal[NUMANGLES * a + b])));
-            bfoFile << tempVal << endl;
+            //bfoFile << tempVal << endl;
             if (tempVal > maxVal) {
                 maxVal = tempVal;
                 angleIdx = b;
@@ -489,7 +488,7 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
 
     cout << "Max power detected at : " << rad2deg(angles[angleIdx]) << " degrees at time : " << numCalls + ((float)(SKIP_RATE*timeIdx) / Fs) << " secs for frequency  : " << freqBF << endl;
 
-    bfoFile.close();
+    //bfoFile.close();
 
 
 }
@@ -540,12 +539,13 @@ int main()
         for (int j = 0; j < NUMCHANNELS * samplesPerBlock; j++)
             sigFile >> curSig[j];
         
-        
+        tick(); 
         detectPinger.detectPingerPos(curSig, samplesPerBlock, firCoeff, bfoFinalReal, bfoFinalImag, analyticData);
-        
+        timeKeep += tock();
+        runCount++;
     }
     
-    cout << "Time to run single block : " << (timeKeep / runCount) <<" num of cycles : "<<runCount << " Total time : "<< timeKeep << endl << endl;
+    cout << "Time to process single block : " << (timeKeep / runCount) <<" num of cycles : "<<runCount << " Total time : "<< timeKeep << endl << endl;
 
     delete(bfoFinalReal);
     delete(bfoFinalImag);
