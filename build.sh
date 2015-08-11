@@ -27,17 +27,22 @@ case $(uname -p) in
 esac
 
 RT=src/rtPingerDet.cpp
+FILT_SIG=src/filtSignal.cpp
+SIG_FREQ=src/findSigFreq.cpp
+GEN_FILT=src/genFilt.cpp
 D2R=src/deg2rad.cpp
+EBF=src/eFreqBeamForm.c
+HIB=src/hilbertTrans.cpp
 
 OBJ=bin/DTLA
 
 INC="-I include"
-LIBS="-le-hal -le-loader -lpthread -lrt"
+LIBS="-le-hal -le-loader -lpthread -lrt -lfftw3f -lm"
 CFLAGS="-Wall -fexceptions -std=c++0x -g -O3"
 
 # Build HOST side application
 echo Deleting previous binaries
 rm -f ${OBJ}
 echo Building host binary
-${CROSS_PREFIX}g++ ${CFLAGS} ${INC} ${EINCS} ${ELIBS} ${RT} ${D2R} -o ${OBJ} ${EINCS} ${ELIBS} ${LIBS}
+${CROSS_PREFIX}g++ ${CFLAGS} ${INC} ${EINCS} ${ELIBS} ${RT} ${FILT_SIG} ${SIG_FREQ} ${GEN_FILT} ${D2R} ${HIB} -o ${OBJ} ${EINCS} ${ELIBS} ${LIBS}
 echo Host binary built 
