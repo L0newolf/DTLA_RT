@@ -1,3 +1,7 @@
+///////////////////////////////////////////////////////////////////////
+/////	BANDWIDTH TESTS RESULTS 								///////
+///////////////////////////////////////////////////////////////////////
+
 Data being copied : 9600 
 ARM Host    --> eCore(0,0) write speed       =  141.28 MB/s
 Time to read data in millisecs : 0.221186 
@@ -17,3 +21,42 @@ eCore (0,0) --> eCore(1,0) write speed (DMA) = 1242.38 MB/s
 eCore (0,0) <-- eCore(1,0) read speed (DMA)  =  401.46 MB/s
 eCore (0,0) --> ERAM write speed (DMA)       =  233.94 MB/s
 eCore (0,0) <-- ERAM read speed (DMA)        =   87.71 MB/s
+
+///////////////////////////////////////////////////////////////////////
+////      RUNTIMES WITH SHARED MEMORY,COPY AFTER EACH LOOP  ///////////
+///////////////////////////////////////////////////////////////////////
+
+Time to process single second data block              : 4958.09   num of cycles : 1   Total time : 4958.09
+Time to process filter single channel data            : 24.0331   num of cycles : 24   Total time : 576.794
+Time to find beamform freq                            : 0.39625   num of cycles : 24   Total time : 9.51
+Time to process hilbert transform single channel data : 20.207   num of cycles : 24   Total time : 484.969
+Time to process beamform single channel data          : 140.434   num of cycles : 24   Total time : 3370.41
+Time to copy single data block to eCPU                : 3.80844   num of cycles : 432   Total time : 1645.25
+Time to process single data block in eCPU             : 1.2221   num of cycles : 432   Total time : 527.948
+Time to copy single data block from shared mem        : 2.75614   num of cycles : 432   Total time : 1190.65
+
+///////////////////////////////////////////////////////////////////////
+////      RUNTIMES WITH SHARED MEMORY,COPY AFTER ALL LOOPS  ///////////
+///////////////////////////////////////////////////////////////////////
+
+Time to process single second data block              : 4986.94   num of cycles : 1   Total time : 4986.94
+Time to process filter single channel data            : 24.0314   num of cycles : 24   Total time : 576.753
+Time to find beamform freq                            : 0.39775   num of cycles : 24   Total time : 9.546
+Time to process hilbert transform single channel data : 20.2156   num of cycles : 24   Total time : 485.175
+Time to process beamform single channel data          : 141.557   num of cycles : 24   Total time : 3397.38
+Time to copy single data block to eCPU                : 3.68126   num of cycles : 432   Total time : 1590.31
+Time to process single data block in eCPU             : 1.2197   num of cycles : 432   Total time : 526.911
+Time to copy single data block from shared mem        : 53.1189   num of cycles : 24   Total time : 1274.85
+
+///////////////////////////////////////////////////////////////////////
+/////////// 	      RUNTIMES WITH eCPU MEMORY				  /////////
+///////////////////////////////////////////////////////////////////////
+
+Time to process single second data block              : 15099.3   num of cycles : 1   Total time : 15099.3
+Time to process filter single channel data            : 24.0912   num of cycles : 24   Total time : 578.189
+Time to find beamform freq                            : 0.402417   num of cycles : 24   Total time : 9.658
+Time to process hilbert transform single channel data : 20.0221   num of cycles : 24   Total time : 480.53
+Time to process beamform single channel data          : 563.285   num of cycles : 24   Total time : 13518.8
+Time to copy single data block to eCPU                : 3.71691   num of cycles : 432   Total time : 1605.71
+Time to process single data block in eCPU             : 0.132352   num of cycles : 432   Total time : 57.1761
+Time to copy single data block from eCPU              : 27.4303   num of cycles : 432   Total time : 11849.9
