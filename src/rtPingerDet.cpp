@@ -63,9 +63,11 @@ float timeKeep6 = 0.0;
 float runCount6 = 0;
 float timeKeep7 = 0.0;
 float runCount7 = 0;
+float timeKeep8 = 0.0;
+float runCount8 = 0;
 
 static struct timeval t0;
-static struct timeval t2,t3;
+static struct timeval t2,t3, t4, t5;
 
 static inline void tick(void) { gettimeofday(&t0, NULL); }
 
@@ -490,9 +492,10 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
 
 
         //Beamform the resultant data
-        tick();
+        gettimeofday(&t4, NULL);
         beamform(dataReal, dataImag, bfoFinalReal, bfoFinalImag, &sinValsAngles[freqIdx][i][0], &cosValsAngles[freqIdx][i][0], &sinValsSamples[freqIdx][i][0], &cosValsSamples[freqIdx][i][0], samplesToUse);
-        timeKeep4 += tock();
+        gettimeofday(&t5, NULL);
+        timeKeep4 += (float)((t5.tv_sec - t4.tv_sec) * 1000 + ((float)t5.tv_usec - t4.tv_usec) / 1000);
         runCount4++;
     }
     
@@ -502,17 +505,23 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
     int timeIdx = 0;
     float tempVal = 0.0;
 
-    for (int a = 0; a < Fs; a++) {
-        for (int b = 0; b < NUMANGLES; b++) {
+    tick();
+    for (int a = 0; a < Fs; a++) 
+    {
+        for (int b = 0; b < NUMANGLES; b++) 
+        {
             tempVal = 20 * log10(sqrt((bfoFinalImag[NUMANGLES * a + b] * bfoFinalImag[NUMANGLES * a + b]) + (bfoFinalReal[NUMANGLES * a + b] * bfoFinalReal[NUMANGLES * a + b])));
             //bfoFile << tempVal << endl;
-            if (tempVal > maxVal) {
+            if (tempVal > maxVal) 
+            {
                 maxVal = tempVal;
                 angleIdx = b;
                 timeIdx = a;
             }
         }
     }
+    timeKeep8 += tock();
+    runCount8++;
 
     cout << "Max power detected at : " << rad2deg(angles[angleIdx]) << " degrees at time : " << numCalls + ((float)(SKIP_RATE*timeIdx) / Fs) << " secs for frequency  : " << freqBF << endl;
 
@@ -574,15 +583,19 @@ int main()
         runCount++;
     }
     
+    /*************************************************************************************************************************************/
     cout<<endl;
     cout << "Time to process single second data block              : " << (timeKeep / runCount)   <<"   num of cycles : "<<runCount <<  "   Total time : "<< timeKeep  << endl;
     cout << "Time to process filter single channel data            : " << (timeKeep1 / runCount1) <<"   num of cycles : "<<runCount1 << "   Total time : "<< timeKeep1 << endl;
     cout << "Time to find beamform freq                            : " << (timeKeep2 / runCount2) <<"   num of cycles : "<<runCount2 << "   Total time : "<< timeKeep2 << endl;
     cout << "Time to process hilbert transform single channel data : " << (timeKeep3 / runCount3) <<"   num of cycles : "<<runCount3 << "   Total time : "<< timeKeep3 << endl;
     cout << "Time to process beamform single channel data          : " << (timeKeep4 / runCount4) <<"   num of cycles : "<<runCount4 << "   Total time : "<< timeKeep4 << endl;
+    cout << "Time to find max power and time and angle             : " << (timeKeep8 / runCount8) <<"   num of cycles : "<<runCount8 << "   Total time : "<< timeKeep8 << endl;
     cout << "Time to copy single data block to eCPU                : " << (timeKeep5 / runCount5) <<"   num of cycles : "<<runCount5 << "   Total time : "<< timeKeep5 << endl;
     cout << "Time to process single data block in eCPU             : " << (timeKeep6 / runCount6) <<"   num of cycles : "<<runCount6 << "   Total time : "<< timeKeep6 << endl;
     cout << "Time to copy single data block from shared mem        : " << (timeKeep7 / runCount7) <<"   num of cycles : "<<runCount7 << "   Total time : "<< timeKeep7 << endl;
+    cout<<endl;
+    /*************************************************************************************************************************************/
 
     delete(bfoFinalReal);
     delete(bfoFinalImag);
