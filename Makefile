@@ -13,7 +13,7 @@ INC = -I include
 
 CFLAGS = -Wall -fexceptions -std=c++0x -g -O3
 
-LIBS = -le-hal -le-loader -lfftw3f -lm -lpthread
+LIBS = -le-hal -le-loader -lfftw3_threads -lfftw3f -lm -lpthread
 
 ESDK=/opt/adapteva/esdk
 ELIBS=-L ${ESDK}/tools/host/lib

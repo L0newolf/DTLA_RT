@@ -29,6 +29,9 @@ std::pair<int, float> findSigFreq::detectSigFreq(float *inSig, int Fs, int nFFT,
         float *power = new float [Plength];
         float *winCoeff = new float[nFFT];
 
+        fftw_init_threads();
+        fftw_plan_with_nthreads(4);
+
         fftwf_complex *curData, *sigFFT;
         curData = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * nFFT);
         sigFFT = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * nFFT);
@@ -69,6 +72,9 @@ std::pair<int, float> findSigFreq::detectSigFreq(float *inSig, int Fs, int nFFT,
         fftwf_destroy_plan(p);
         fftwf_free(curData);
         fftwf_free(sigFFT);
+        fftw_cleanup_threads();
+        //fftw_cleanup();
+
         delete []power;
         delete []winCoeff;
 
