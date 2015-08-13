@@ -5,8 +5,6 @@
 #include <cstring>
 #include <tuple>
 #include <iomanip>
-#include <complex.h>
-#include <cmath>
 
 #include <fstream>
 #include <sstream>
@@ -42,6 +40,10 @@ extern e_platform_t e_platform;
 
 float angles[NUMANGLES];
 float sinAngles[NUMANGLES];
+float sinValsAngles[nFFT][NUMCHANNELS][NUMANGLES];
+float cosValsAngles[nFFT][NUMCHANNELS][NUMANGLES];
+float sinValsSamples[nFFT][NUMCHANNELS][WINDOWPERCORE];
+float cosValsSamples[nFFT][NUMCHANNELS][WINDOWPERCORE];
 
 /*************************************************************************************************************************************/
 
@@ -99,6 +101,30 @@ void initBFCoeffs()
     float temp, temp1;
 
     deg2rad(angles, sinAngles, NUMANGLES);
+
+    temp = 2 * pi * step;
+
+    for (int i = 0; i < nFFT; i++)
+    {
+        for (int j = 0; j < NUMCHANNELS; j++)
+        {
+
+            for (int k = 0; k < NUMANGLES; k++)
+            {
+                temp1 = i * temp * SPACING * ((float)j / SPEED) * sinAngles[k];
+                sinValsAngles[i][j][k] = sin(temp1);
+                cosValsAngles[i][j][k] = cos(temp1);
+            }
+
+            for (int k = 0; k < WINDOWPERCORE; k++)
+            {
+                temp1 = -i * temp * ((((float)k + 1) / Fs) + SLEW * j);
+                sinValsSamples[i][j][k] = sin(temp1);
+                cosValsSamples[i][j][k] = cos(temp1);
+            }
+
+        }
+    }
 }
 /*************************************************************************************************************************************/
 
@@ -169,24 +195,38 @@ int eFree(void)
 }
 /*************************************************************************************************************************************/
 
-void beamFormer(std::complex<float> *bfIn, std::complex<float> *bfOut, int numSamples, float freqBF)
+void beamFormer(float *bfInReal,float *bfInImag,float *bfOutReal,float *bfOutImag, int numSamples, float freqBF)
 {
-    std::complex<float> temp;
-    std::complex<float> temp1;
-    std::complex<float> temp2;
+    float temp_real;
+    float temp_imag;
+
+    float temp_real_1;
+    float temp_imag_1;
+
+    float temp_real_2;
+    float temp_imag_2;
 
     for(int k=0;k<numSamples;k++)
     {
         for(int j=0;j<NUMCHANNELS;j++)
         {
-            temp1 = (std::complex<float>)exp(-2*pi*freqBF*k/numSamples);
-            temp2 = (std::complex<float>)exp(-2*pi*SLEW*j*freqBF);
+            temp_real = cos(-2*pi*freqBF*( k/numSamples + SLEW*j));
+            temp_imag = sin(-2*pi*freqBF*( k/numSamples + SLEW*j));
 
-            bfIn[NUMCHANNELS*j+k] = bfIn[NUMCHANNELS*j+k] * temp1 * temp2 ;
+            temp_real_1 = bfInReal[NUMCHANNELS*j+k]*temp_real - bfInImag[NUMCHANNELS*j+k]*temp_imag;
+            temp_imag_1 = bfInReal[NUMCHANNELS*j+k]*temp_imag + bfInImag[NUMCHANNELS*j+k]*temp_real;
+
             for(int a=0;a<NUMANGLES;a++)
             {
-                temp = exp(2*pi*freqBF*SPACING*j/SPEED*sin(angles[a]));
-                bfOut[NUMANGLES*k+a] = bfOut[NUMANGLES*k+a] + conj(temp) * bfIn[NUMCHANNELS*j+k];
+                temp_real_2 = cos(2*pi*freqBF*SPACING*j/SPEED*sin(angles[a]));
+                temp_imag_2 = sin(2*pi*freqBF*SPACING*j/SPEED*sin(angles[a]));
+
+                temp_real = temp_real_1*temp_real_2 + temp_imag_1*temp_imag_2;
+                temp_imag = temp_real_2*temp_imag_1 - temp_imag_2*temp_real_1;
+
+                bfOutReal[NUMANGLES*k+a] = bfOutReal[NUMANGLES*k+a] + temp_real;
+                bfOutImag[NUMANGLES*k+a] = bfOutImag[NUMANGLES*k+a] + temp_imag;
+
             }
         }
     }
@@ -207,8 +247,12 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
     float curData[NUMCHANNELS][numSamples];
 
     cout<<"Got here "<<endl;
-    std::complex<float> bfOut[samplesToUse * NUMANGLES]; 
-    std::complex<float> bfIn[samplesToUse * NUMCHANNELS];
+    float bfOutReal[samplesToUse * NUMANGLES]; 
+    float bfOutImag[samplesToUse * NUMANGLES];
+
+    float bfInReal[samplesToUse * NUMANGLES]; 
+    float bfInImag[samplesToUse * NUMANGLES];
+
     cout<<"Got here1 "<<endl;    
     //
 
@@ -223,7 +267,7 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
 
     for (int j = 0; j < samplesToUse * NUMANGLES; j++)
     {
-        bfOut[j] = std::complex<float>(1,1);
+        bfOut[j] = float(1,1);
     }
 
 
@@ -299,7 +343,8 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
 
         for (int k = 0; k < samplesToUse; k++)
         {
-            bfIn[NUMCHANNELS*k + i] = std::complex<float>(analyticData[k][0],analyticData[k][1]);
+            bfInReal[NUMCHANNELS*k + i] = (float)analyticData[k][0];
+            bfInImag[NUMCHANNELS*k + i] = (float)analyticData[k][1]);
         }
 
     }
@@ -308,7 +353,7 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
 
     //Beamform the resultant data
     /* CALL BF FUNCTION HERE */
-    beamFormer(bfIn,bfOut,samplesToUse,freqBF);
+    beamFormer(bfInReal,bfInImag,bfOutReal,bfOutImag,samplesToUse,freqBF);
 
     float maxVal = 0.0;
     int angleIdx = 0;
@@ -320,7 +365,7 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
     {
         for (int b = 0; b < NUMANGLES; b++)
         {
-            tempVal = 20 * log10(abs(bfOut[NUMANGLES * a + b]));
+            tempVal = 20 * log10(sqrt(bfOutReal[NUMANGLES * a + b]*bfOutReal[NUMANGLES * a + b] + bfOutImag[NUMANGLES * a + b]*bfOutImag[NUMANGLES * a + b]));
             //bfoFile << tempVal << endl;
             if (tempVal > maxVal)
             {
