@@ -4,7 +4,7 @@
   class rtPingerDet{
 
     public :
-    void detectPingerPos(float *data,int numSamples,float *firCoeff,float *bfoFinalReal,float *bfoFinalImag,fftwf_complex *analyticData);
+    void detectPingerPos(float *data,int numSamples,float *firCoeff,fftwf_complex *analyticData);
     rtPingerDet();
 
     private :
