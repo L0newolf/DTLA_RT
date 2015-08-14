@@ -7,6 +7,9 @@
 
 #define e_memcopy(dst, src, size) e_dma_copy(dst, src, size)
 
+volatile float  bfOutReal[WINDOWPERCORE * NUMANGLES] SECTION("section_core");
+volatile float  bfOutImag[WINDOWPERCORE * NUMANGLES] SECTION("section_core");
+
 static void __attribute__((interrupt)) irqhandler(int n) {
   // do nothing
 }
@@ -27,45 +30,53 @@ static inline void epc_init(void) {
 
 static int getCoreNum( e_coreid_t coreid )
 {
-    int coreNum;
+  int coreNum;
   int row     = e_group_config.core_row;
   int col     = e_group_config.core_col;
   coreNum = row * e_group_config.group_cols + col;
 
-    return coreNum;
+  return coreNum;
 }
 
 int main(void)
 
 {
-  float *pmemBfoReal,*pmemBfoImag;
+  float *pmemBfoReal, *pmemBfoImag;
   void *src, *dst;
 
-  int *done, *numSamples;
-  float *dataReal, *dataImag, *sinValsAngles, *cosValsAngles, *sinValsSamples, *cosValsSamples;
+  int *done, *loopCount;
+  float *bfInReal;
+  float *bfInImag;
+  float *freqBF;
+  float *angles;
 
-  float val, realVal_1, imagVal_1,realVal, imagVal;
-  int i, a;
+  float temp1_real;
+  float temp1_imag;
+
+  float temp2_real;
+  float temp2_imag;
+
+  float temp3_real;
+  float temp3_imag;
+
+  float temp4_real;
+  float temp4_imag;
+
+  int i,j,k,a;
   epc_init();
 
   unsigned int ptr = 0x2000;
-  dataReal = (float *)ptr;
-  ptr += WINDOWPERCORE * sizeof(float);
-  dataImag = (float *)ptr;;
-  ptr += WINDOWPERCORE * sizeof(float);
-  sinValsAngles = (float *)ptr;
-  ptr += (NUMANGLES) * sizeof(float);
-  cosValsAngles = (float *)ptr;
-  ptr += (NUMANGLES) * sizeof(float);
-  sinValsSamples = (float *)ptr;
-  ptr += (WINDOWPERCORE) * sizeof(float);
-  cosValsSamples = (float *)ptr;
-  ptr += (WINDOWPERCORE) * sizeof(float);
-  numSamples = (int *)ptr;
+  bfInReal = (float *)ptr;
+  ptr += WINDOWPERCORE * NUMCHANNELS * sizeof(float);
+  bfInImag = (float *)ptr;;
+  ptr += WINDOWPERCORE * NUMCHANNELS * sizeof(float);
+  angles = (float *)ptr;;
+  ptr += NUMANGLES* sizeof(float);
+  freqBF = (float *)ptr;
+  ptr += sizeof(float);
+  loopCount = (int *)ptr;
   ptr += sizeof(int);
 
-  float *bfoReal = (float *)0x2500;
-  float *bfoImag = (float *)0x5000;
 
   done = (int *)0x7500;
 
@@ -75,36 +86,43 @@ int main(void)
   pmemBfoReal = (float *) (e_emem_config.base + 0x00000000 + coreNum * sizeBuf );
   pmemBfoImag = (float *) (e_emem_config.base + 0x00010000 + coreNum * sizeBuf );
 
-
-  while (1) 
+  while (1)
   {
     epc_wait();
     e_irq_set(0, 0, E_USER_INT);
-    
 
-    for (i = 0; i < WINDOWPERCORE; i++) 
+    for (k = 0; k < WINDOWPERCORE; k++)
     {
-      realVal_1 =dataReal[i] * cosValsSamples[i] - dataImag[i] * sinValsSamples[i];
-      imagVal_1 =dataReal[i] * sinValsSamples[i] + dataImag[i] * cosValsSamples[i];
+        for (j = 0; j < NUMCHANNELS; j++)
+        {
+            temp1_real = cos(-2 * pi * (*(freqBF)) * (k / WINDOWPERCORE + SLEW * j));
+            temp1_imag = sin(-2 * pi * (*(freqBF)) * (k / WINDOWPERCORE + SLEW * j));
 
+            temp2_real = bfInReal[NUMCHANNELS * k + j] * temp1_real - bfInImag[NUMCHANNELS * k + j] * temp1_imag;
+            temp2_imag = bfInReal[NUMCHANNELS * k + j] * temp1_imag + bfInImag[NUMCHANNELS * k + j] * temp1_real;
 
-      for (a = 0; a < NUMANGLES; a++) 
-      {
-        realVal = cosValsAngles[a] * realVal_1 + sinValsAngles[a] * imagVal_1;
-        imagVal = cosValsAngles[a] * imagVal_1 - sinValsAngles[a] * realVal_1;
-        bfoReal[i * NUMANGLES + a ] = bfoReal[i * NUMANGLES + a ] + realVal;
-        bfoImag[i * NUMANGLES + a ] = bfoImag[i * NUMANGLES + a ] + imagVal;
-      }
-       
+            for (a = 0; a < NUMANGLES; a++)
+            {
+                temp3_real = cos(2 * pi * (*(freqBF)) * SPACING * j / SPEED * sin(angles[a]));
+                temp3_imag = sin(2 * pi * (*(freqBF)) * SPACING * j / SPEED * sin(angles[a]));
+
+                temp4_real = temp2_real * temp3_real + temp2_imag * temp3_imag;
+                temp4_imag = -temp2_real * temp3_imag + temp2_imag * temp3_real;
+
+                bfOutReal[NUMANGLES * k + a] += temp4_real;
+                bfOutImag[NUMANGLES * k + a] += temp4_imag;
+            }
+        }
     }
 
     dst = (void *)pmemBfoReal;
-    src = (void *)bfoReal;
+    src = (void *)bfOutReal;
     e_memcopy(dst, src, sizeBuf);
 
     dst = (void *)pmemBfoImag;
-    src = (void *)bfoImag;
+    src = (void *)bfOutImag;
     e_memcopy(dst, src, sizeBuf);
+    
 
     (*(done)) = 0x00000001;
   }

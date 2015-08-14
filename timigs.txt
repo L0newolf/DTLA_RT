@@ -1,26 +1,26 @@
 ///////////////////////////////////////////////////////////////////////
-/////	BANDWIDTH TESTS RESULTS 								///////
+/////	BANDWIDTH TESTS RESULTS 		        ///////
 ///////////////////////////////////////////////////////////////////////
 
 Data being copied : 9600 
-ARM Host    --> eCore(0,0) write speed       =  141.28 MB/s
-Time to read data in millisecs : 0.221186 
+ARM Host    --> eCore(0,0) write speed       =  105.96 MB/s
+Time to read data in millisecs : 0.294915 
 
-ARM Host    --> eCore(0,0) read speed        =   16.79 MB/s
-Time to read data in millisecs : 1.861648 
+ARM Host    --> eCore(0,0) read speed        =   17.30 MB/s
+Time to read data in millisecs : 1.806352 
 
-Data being copied : 153600 
-ARM Host    --> ERAM write speed             = 9137.35 MB/s
-Time to read data in millisecs : 1.751055 
-ARM Host    <-- ERAM read speed              = 14000.77 MB/s
-Time to read data in millisecs : 1.142794 
-
-
-ARM Host    <-> DRAM: Copy speed             =  353.01 MB/s
+Data being copied : 3145728 
+ARM Host    --> ERAM write speed             =   88.07 MB/s
+Time to read data in millisecs : 34.062633 
+ARM Host    <-- ERAM read speed              =  133.19 MB/s
+Time to read data in millisecs : 22.524100 
+ARM Host    <-> DRAM: Copy speed             =  357.07 MB/s
 eCore (0,0) --> eCore(1,0) write speed (DMA) = 1242.38 MB/s
 eCore (0,0) <-- eCore(1,0) read speed (DMA)  =  401.46 MB/s
-eCore (0,0) --> ERAM write speed (DMA)       =  233.94 MB/s
-eCore (0,0) <-- ERAM read speed (DMA)        =   87.71 MB/s
+eCore (0,0) --> ERAM write speed (DMA)       =  232.11 MB/s
+eCore (0,0) <-- ERAM read speed (DMA)        =   87.72 MB/s
+/home/parallella/e-bandwidth-test/test.sh PASSED
+
 
 ///////////////////////////////////////////////////////////////////////
 ////      RUNTIMES WITH SHARED MEMORY,COPY AFTER EACH LOOP  ///////////
@@ -49,7 +49,7 @@ Time to process single data block in eCPU             : 1.2197   num of cycles :
 Time to copy single data block from shared mem        : 53.1189   num of cycles : 24   Total time : 1274.85
 
 ///////////////////////////////////////////////////////////////////////
-/////////// 	      RUNTIMES WITH eCPU MEMORY				  /////////
+/////////// 	      RUNTIMES WITH eCPU MEMORY	      /////////
 ///////////////////////////////////////////////////////////////////////
 
 Time to process single second data block              : 15099.3   num of cycles : 1   Total time : 15099.3

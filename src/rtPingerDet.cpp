@@ -195,40 +195,148 @@ int eFree(void)
 }
 /*************************************************************************************************************************************/
 
-void beamFormer(float *bfInReal,float *bfInImag,float *bfOutReal,float *bfOutImag, int numSamples, float freqBF)
+int writeDataToEpipahny(float *bfInReal, float *bfInImag,float freqBF, int loopCount)
 {
-    float temp_real;
-    float temp_imag;
+    int coreId, offset;
 
-    float temp_real_1;
-    float temp_imag_1;
+    unsigned int done = 0x00000000;
 
-    float temp_real_2;
-    float temp_imag_2;
-
-    for(int k=0;k<numSamples;k++)
+    for (int r = 0; r < NROWS; r++)
     {
-        for(int j=0;j<NUMCHANNELS;j++)
+        for (int c = 0; c < NCOLS; c++)
         {
-            temp_real = cos(-2*pi*freqBF*( k/numSamples + SLEW*j));
-            temp_imag = sin(-2*pi*freqBF*( k/numSamples + SLEW*j));
 
-            temp_real_1 = bfInReal[NUMCHANNELS*j+k]*temp_real - bfInImag[NUMCHANNELS*j+k]*temp_imag;
-            temp_imag_1 = bfInReal[NUMCHANNELS*j+k]*temp_imag + bfInImag[NUMCHANNELS*j+k]*temp_real;
+            coreId = r * NCOLS + c;
+            offset = 0x2000;
+        
+            if (e_write(&dev, r, c, offset, (const void *)&bfInReal[WINDOWPERCORE * NUMCHANNELS * coreId], WINDOWPERCORE * NUMCHANNELS * sizeof(float)) == E_ERR) {
+                cout << "ERROR : Failed to write data to device memory" << endl;
+                return 1;
+            }
+            offset += WINDOWPERCORE * NUMCHANNELS * sizeof(float);
 
-            for(int a=0;a<NUMANGLES;a++)
+
+            if (e_write(&dev, r, c, offset, (const void *)&bfInImag[WINDOWPERCORE * NUMCHANNELS * coreId], WINDOWPERCORE * NUMCHANNELS * sizeof(float)) == E_ERR) {
+                cout << "ERROR : Failed to write data to device memory" << endl;
+                return 1;
+            }
+            offset += WINDOWPERCORE * NUMCHANNELS * sizeof(float);
+
+            if (e_write(&dev, r, c, offset, (const void *)angles, NUMANGLES * sizeof(float)) == E_ERR) {
+                cout << "ERROR : Failed to write data to device memory" << endl;
+                return 1;
+            }
+            offset += NUMANGLES * sizeof(float);
+
+            if (e_write(&dev, r, c, offset, (const void *)&freqBF, sizeof(float)) == E_ERR) {
+                cout << "ERROR : Failed to write data to device memory" << endl;
+                return 1;
+            }
+            offset += sizeof(float);
+
+            if (e_write(&dev, r, c, offset, (const void *)&loopCount, sizeof(int)) == E_ERR) {
+                cout << "ERROR : Failed to write data to device memory" << endl;
+                return 1;
+            }
+            offset += sizeof(int);
+
+            if (e_write(&dev, r, c, 0x7500, (const void *)&done, sizeof(done)) == E_ERR)
             {
-                temp_real_2 = cos(2*pi*freqBF*SPACING*j/SPEED*sin(angles[a]));
-                temp_imag_2 = sin(2*pi*freqBF*SPACING*j/SPEED*sin(angles[a]));
+                cout << "ERROR : Failed to write data to eCPU memory" << endl;
+                return 1;
+            }
 
-                temp_real = temp_real_1*temp_real_2 + temp_imag_1*temp_imag_2;
-                temp_imag = temp_real_2*temp_imag_1 - temp_imag_2*temp_real_1;
+        }
+    }
 
-                bfOutReal[NUMANGLES*k+a] = bfOutReal[NUMANGLES*k+a] + temp_real;
-                bfOutImag[NUMANGLES*k+a] = bfOutImag[NUMANGLES*k+a] + temp_imag;
+    return 0;
+}
 
+/*************************************************************************************************************************************/
+
+void beamFormer(float *bfInReal, float *bfInImag, float *bfOutReal, float *bfOutImag, int numSamples, float freqBF)
+{
+    int winLen = (int)CORES *(int) WINDOWPERCORE;
+    int numLoops = numSamples / winLen;
+    int offset = 0;
+    unsigned int done[CORES], allDone = 0;
+
+     for (int i = 0; i < numLoops; i++)
+    {
+
+        cout << "Processing data block : " << i << endl;
+
+        for (int c = 0; c < CORES; c++)
+            done[c] = 0;
+
+        offset = CORES * WINDOWPERCORE * NUMCHANNELS * i;
+
+
+        // write to memeory
+        tick();
+        if (writeDataToEpipahny(&bfInReal[offset], &bfInImag[offset],freqBF,i))
+        {
+            cout << "ERROR : Failed to write data to shared memory" << endl;
+        }
+        timeKeep5 += tock();
+        runCount5++;
+
+        // Run program on cores
+        for (int r = 0; r < NROWS; r++)
+        {
+            for (int c = 0; c < NCOLS; c++)
+            {
+                if (e_signal(&dev, r, c) != E_OK)
+                {
+                    std::cout << "ERROR : Failed to start program on epipahny core " << std::endl;
+                }
             }
         }
+
+
+        allDone = 0;
+
+        tick();
+        while (1)
+        {
+            for (int r = 0; r < NROWS; r++)
+            {
+                for (int c = 0; c < NCOLS; c++)
+                {
+                    if (!done[r * NCOLS + c])
+                    {
+                        if (e_read(&dev, r, c, 0x7500, &done[r * NCOLS + c], sizeof(int)) == E_ERR)
+                        {
+                            cout << "ERROR : Failed to read data from device memory" << endl;
+                        }
+                        else
+                        {
+                            //cout << "Status from core " << r * NCOLS + c << " : " << done[r * NCOLS + c] << endl;
+                            allDone += done[r * NCOLS + c];
+                        }
+                    }
+                }
+            }
+
+            if (allDone == CORES)
+            {
+                allDone = 0;
+                break;
+            }
+            else
+            {
+                //cout << "all Done : " << allDone << endl ;
+                usleep(10);
+            }
+        }
+        timeKeep6 += tock();
+        runCount6++;
+
+        tick();
+        e_read(pbfoRealERAM , 0, 0, (off_t) 0,  (void *)&bfOutReal[offset * NUMANGLES ], CORES * WINDOWPERCORE * NUMANGLES * sizeof(float));
+        e_read(pbfoImagERAM , 0, 0, (off_t) 0,  (void *)&bfOutImag[offset * NUMANGLES ], CORES * WINDOWPERCORE * NUMANGLES * sizeof(float));
+        timeKeep7 += tock();
+        runCount7++;
     }
 }
 
@@ -246,14 +354,11 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
     int samplesToUse = (int)(numSamples / SKIP_RATE);
     float curData[NUMCHANNELS][numSamples];
 
-    cout<<"Got here "<<endl;
-    float bfOutReal[samplesToUse * NUMANGLES]; 
-    float bfOutImag[samplesToUse * NUMANGLES];
+    float *bfOutReal = new float [samplesToUse * NUMANGLES];
+    float *bfOutImag = new float [samplesToUse * NUMANGLES];
 
-    float bfInReal[samplesToUse * NUMANGLES]; 
-    float bfInImag[samplesToUse * NUMANGLES];
-
-    cout<<"Got here1 "<<endl;    
+    float *bfInReal = new float [samplesToUse * NUMANGLES];
+    float *bfInImag = new float [samplesToUse * NUMANGLES];
     //
 
 
@@ -263,16 +368,17 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
     int freqIdx = 0;
     float filtData[numSamples];
 
-    
+
 
     for (int j = 0; j < samplesToUse * NUMANGLES; j++)
     {
-        bfOut[j] = float(1,1);
+        bfOutReal[j] = 1;
+        bfOutImag[j] = 1;
     }
 
 
 
-    //std::fstream bfoFile("bfo_opt_cpp.txt", std::ios_base::out);
+    std::fstream bfoFile("bfo_opt_cpp.txt", std::ios_base::out);
 
     //BandPass the signal and find the frequency to be used for beamforming
 
@@ -343,17 +449,20 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
 
         for (int k = 0; k < samplesToUse; k++)
         {
-            bfInReal[NUMCHANNELS*k + i] = (float)analyticData[k][0];
-            bfInImag[NUMCHANNELS*k + i] = (float)analyticData[k][1]);
+            bfInReal[NUMCHANNELS * k + i] = (float)analyticData[k][0];
+            bfInImag[NUMCHANNELS * k + i] = (float)analyticData[k][1];
         }
 
     }
 
-    
+
 
     //Beamform the resultant data
-    /* CALL BF FUNCTION HERE */
-    beamFormer(bfInReal,bfInImag,bfOutReal,bfOutImag,samplesToUse,freqBF);
+    gettimeofday(&t4, NULL);
+    beamFormer(bfInReal, bfInImag, bfOutReal, bfOutImag, samplesToUse, freqBF);
+    gettimeofday(&t5, NULL);
+    timeKeep4 += (float)((t5.tv_sec - t4.tv_sec) * 1000 + ((float)t5.tv_usec - t4.tv_usec) / 1000);
+    runCount4++;
 
     float maxVal = 0.0;
     int angleIdx = 0;
@@ -365,8 +474,8 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
     {
         for (int b = 0; b < NUMANGLES; b++)
         {
-            tempVal = 20 * log10(sqrt(bfOutReal[NUMANGLES * a + b]*bfOutReal[NUMANGLES * a + b] + bfOutImag[NUMANGLES * a + b]*bfOutImag[NUMANGLES * a + b]));
-            //bfoFile << tempVal << endl;
+            tempVal = 20 * log10(sqrt(bfOutReal[NUMANGLES * a + b] * bfOutReal[NUMANGLES * a + b] + bfOutImag[NUMANGLES * a + b] * bfOutImag[NUMANGLES * a + b]));
+            bfoFile << tempVal << endl;
             if (tempVal > maxVal)
             {
                 maxVal = tempVal;
@@ -380,7 +489,7 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
 
     cout << "Max power detected at : " << rad2deg(angles[angleIdx]) << " degrees at time : " << numCalls + ((float)(SKIP_RATE * timeIdx) / Fs) << " secs for frequency  : " << freqBF << endl;
 
-    //bfoFile.close();
+    bfoFile.close();
 
 
 }
@@ -419,7 +528,7 @@ int main()
         cout << "Cannot initialize the epiphany cluster.... \n";
     }
 
-    
+
 
     std::fstream sigFile("sig.txt", std::ios_base::in);
 
@@ -431,7 +540,7 @@ int main()
 
         for (int j = 0; j < NUMCHANNELS * samplesPerBlock; j++)
             sigFile >> curSig[j];
-        
+
         gettimeofday(&t2, NULL);
         detectPinger.detectPingerPos(curSig, samplesPerBlock, firCoeff, analyticData);
         gettimeofday(&t3, NULL);
