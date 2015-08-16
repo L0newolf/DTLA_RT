@@ -40,10 +40,16 @@ extern e_platform_t e_platform;
 
 float angles[NUMANGLES];
 float sinAngles[NUMANGLES];
-float sinValsAngles[nFFT][NUMCHANNELS][NUMANGLES];
-float cosValsAngles[nFFT][NUMCHANNELS][NUMANGLES];
-float sinValsSamples[nFFT][NUMCHANNELS][WINDOWPERCORE];
-float cosValsSamples[nFFT][NUMCHANNELS][WINDOWPERCORE];
+/*
+float sinValsAngles[nFFT][NUMANGLES][NUMCHANNELS];
+float cosValsAngles[nFFT][NUMANGLES][NUMCHANNELS];
+float sinValsChannels[nFFT][WINDOWPERCORE][NUMCHANNELS];
+float cosValsChannels[nFFT][WINDOWPERCORE][NUMCHANNELS];
+*/
+float sinValsAngles[nFFT][NUMANGLES * NUMCHANNELS];
+float cosValsAngles[nFFT][NUMANGLES * NUMCHANNELS];
+float sinValsChannels[nFFT][WINDOWPERCORE * NUMCHANNELS];
+float cosValsChannels[nFFT][WINDOWPERCORE * NUMCHANNELS];
 
 /*************************************************************************************************************************************/
 
@@ -104,26 +110,33 @@ void initBFCoeffs()
 
     temp = 2 * pi * step;
 
-    for (int i = 0; i < nFFT; i++)
+    int i, k, j;
+
+    for ( i = 0; i < nFFT; i++)
     {
-        for (int j = 0; j < NUMCHANNELS; j++)
+
+
+        for ( j = 0; j < NUMCHANNELS; j++)
         {
-
-            for (int k = 0; k < NUMANGLES; k++)
+            for ( k = 0; k < NUMANGLES; k++)
             {
-                temp1 = i * temp * SPACING * ((float)j / SPEED) * sinAngles[k];
-                sinValsAngles[i][j][k] = sin(temp1);
-                cosValsAngles[i][j][k] = cos(temp1);
+                temp1 = i * temp * SPACING * j / SPEED * sin(angles[k]);
+                sinValsAngles[i][NUMANGLES * j + k] = sin(temp1);
+                cosValsAngles[i][NUMANGLES * j + k] = cos(temp1);
             }
-
-            for (int k = 0; k < WINDOWPERCORE; k++)
-            {
-                temp1 = -i * temp * ((((float)k + 1) / Fs) + SLEW * j);
-                sinValsSamples[i][j][k] = sin(temp1);
-                cosValsSamples[i][j][k] = cos(temp1);
-            }
-
         }
+
+        for ( k = 0; k < WINDOWPERCORE; k++)
+        {
+            for ( j = 0; j < NUMCHANNELS; j++)
+            {
+                temp1 = -i * temp * (k / WINDOWPERCORE + SLEW * j);
+                sinValsChannels[i][NUMCHANNELS * k + j] = sin(temp1);
+                cosValsChannels[i][NUMCHANNELS * k + j] = cos(temp1);
+            }
+        }
+
+
     }
 }
 /*************************************************************************************************************************************/
@@ -153,7 +166,7 @@ int eInit(void)
         return 1;
     }
 
-    if (E_OK != e_alloc(pbfoImagERAM, 0x00010000, Fs * NUMANGLES * sizeof(float)))
+    if (E_OK != e_alloc(pbfoImagERAM, 0x00100000, Fs * NUMANGLES * sizeof(float)))
     {
         fprintf(stderr, "\nERROR: Can't allocate Epiphany DRAM!\n\n");
         return 1;
@@ -195,7 +208,7 @@ int eFree(void)
 }
 /*************************************************************************************************************************************/
 
-int writeDataToEpipahny(float *bfInReal, float *bfInImag,float freqBF, int loopCount)
+int writeDataToEpipahny(float *bfInReal, float *bfInImag, int freqBF, int loopCount)
 {
     int coreId, offset;
 
@@ -208,15 +221,15 @@ int writeDataToEpipahny(float *bfInReal, float *bfInImag,float freqBF, int loopC
 
             coreId = r * NCOLS + c;
             offset = 0x2000;
-        
-            if (e_write(&dev, r, c, offset, (const void *)&bfInReal[WINDOWPERCORE * NUMCHANNELS * coreId], WINDOWPERCORE * NUMCHANNELS * sizeof(float)) == E_ERR) {
+
+            if (e_write(&dev, r, c, offset, (const void *)&bfInReal[WINDOWPERCORE * NUMCHANNELS * coreId + CORES * WINDOWPERCORE * NUMCHANNELS * loopCount], WINDOWPERCORE * NUMCHANNELS * sizeof(float)) == E_ERR) {
                 cout << "ERROR : Failed to write data to device memory" << endl;
                 return 1;
             }
             offset += WINDOWPERCORE * NUMCHANNELS * sizeof(float);
 
 
-            if (e_write(&dev, r, c, offset, (const void *)&bfInImag[WINDOWPERCORE * NUMCHANNELS * coreId], WINDOWPERCORE * NUMCHANNELS * sizeof(float)) == E_ERR) {
+            if (e_write(&dev, r, c, offset, (const void *)&bfInImag[WINDOWPERCORE * NUMCHANNELS * coreId + CORES * WINDOWPERCORE * NUMCHANNELS * loopCount], WINDOWPERCORE * NUMCHANNELS * sizeof(float)) == E_ERR) {
                 cout << "ERROR : Failed to write data to device memory" << endl;
                 return 1;
             }
@@ -228,17 +241,37 @@ int writeDataToEpipahny(float *bfInReal, float *bfInImag,float freqBF, int loopC
             }
             offset += NUMANGLES * sizeof(float);
 
-            if (e_write(&dev, r, c, offset, (const void *)&freqBF, sizeof(float)) == E_ERR) {
-                cout << "ERROR : Failed to write data to device memory" << endl;
-                return 1;
-            }
-            offset += sizeof(float);
-
             if (e_write(&dev, r, c, offset, (const void *)&loopCount, sizeof(int)) == E_ERR) {
                 cout << "ERROR : Failed to write data to device memory" << endl;
                 return 1;
             }
             offset += sizeof(int);
+
+            offset = 0x2500;
+
+            if (e_write(&dev, r, c, offset, (const void *)&sinValsChannels[freqBF][0], NUMCHANNELS * WINDOWPERCORE * sizeof(float)) == E_ERR) {
+                cout << "ERROR : Failed to write data to device memory" << endl;
+                return 1;
+            }
+            offset += NUMCHANNELS * WINDOWPERCORE * sizeof(float);
+
+            if (e_write(&dev, r, c, offset, (const void *)&cosValsChannels[freqBF][0], NUMCHANNELS * WINDOWPERCORE * sizeof(float)) == E_ERR) {
+                cout << "ERROR : Failed to write data to device memory" << endl;
+                return 1;
+            }
+            offset += NUMCHANNELS * WINDOWPERCORE * sizeof(float);
+
+            if (e_write(&dev, r, c, offset, (const void *)&sinValsAngles[freqBF][0], NUMCHANNELS * NUMANGLES * sizeof(float)) == E_ERR) {
+                cout << "ERROR : Failed to write data to device memory" << endl;
+                return 1;
+            }
+            offset += NUMCHANNELS * NUMANGLES * sizeof(float);
+
+            if (e_write(&dev, r, c, offset, (const void *)&cosValsAngles[freqBF][0], NUMCHANNELS * NUMANGLES * sizeof(float)) == E_ERR) {
+                cout << "ERROR : Failed to write data to device memory" << endl;
+                return 1;
+            }
+            offset += NUMCHANNELS * NUMANGLES * sizeof(float);
 
             if (e_write(&dev, r, c, 0x7500, (const void *)&done, sizeof(done)) == E_ERR)
             {
@@ -254,27 +287,23 @@ int writeDataToEpipahny(float *bfInReal, float *bfInImag,float freqBF, int loopC
 
 /*************************************************************************************************************************************/
 
-void beamFormer(float *bfInReal, float *bfInImag, float *bfOutReal, float *bfOutImag, int numSamples, float freqBF)
+void beamFormer(float *bfInReal, float *bfInImag, float *bfOutReal, float *bfOutImag, int numSamples, int freqBF)
 {
-    int winLen = (int)CORES *(int) WINDOWPERCORE;
+    int winLen = (int)CORES * (int) WINDOWPERCORE;
     int numLoops = numSamples / winLen;
-    int offset = 0;
     unsigned int done[CORES], allDone = 0;
 
-     for (int i = 0; i < numLoops; i++)
+    for (int i = 0; i < numLoops; i++)
     {
 
-        cout << "Processing data block : " << i << endl;
+        //cout << "Processing data block : " << i << endl;
 
         for (int c = 0; c < CORES; c++)
             done[c] = 0;
 
-        offset = CORES * WINDOWPERCORE * NUMCHANNELS * i;
-
-
         // write to memeory
         tick();
-        if (writeDataToEpipahny(&bfInReal[offset], &bfInImag[offset],freqBF,i))
+        if (writeDataToEpipahny(bfInReal,bfInImag,freqBF,i))
         {
             cout << "ERROR : Failed to write data to shared memory" << endl;
         }
@@ -295,6 +324,7 @@ void beamFormer(float *bfInReal, float *bfInImag, float *bfOutReal, float *bfOut
 
 
         allDone = 0;
+
 
         tick();
         while (1)
@@ -333,8 +363,8 @@ void beamFormer(float *bfInReal, float *bfInImag, float *bfOutReal, float *bfOut
         runCount6++;
 
         tick();
-        e_read(pbfoRealERAM , 0, 0, (off_t) 0,  (void *)&bfOutReal[offset * NUMANGLES ], CORES * WINDOWPERCORE * NUMANGLES * sizeof(float));
-        e_read(pbfoImagERAM , 0, 0, (off_t) 0,  (void *)&bfOutImag[offset * NUMANGLES ], CORES * WINDOWPERCORE * NUMANGLES * sizeof(float));
+        e_read(pbfoRealERAM , 0, 0, (off_t) 0,  (void *)&bfOutReal[CORES * WINDOWPERCORE * NUMANGLES * i], CORES * WINDOWPERCORE * NUMANGLES * sizeof(float));
+        e_read(pbfoImagERAM , 0, 0, (off_t) 0,  (void *)&bfOutImag[CORES * WINDOWPERCORE * NUMANGLES * i], CORES * WINDOWPERCORE * NUMANGLES * sizeof(float));
         timeKeep7 += tock();
         runCount7++;
     }
@@ -459,7 +489,7 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
 
     //Beamform the resultant data
     gettimeofday(&t4, NULL);
-    beamFormer(bfInReal, bfInImag, bfOutReal, bfOutImag, samplesToUse, freqBF);
+    beamFormer(bfInReal, bfInImag, bfOutReal, bfOutImag, samplesToUse, freqIdx);
     gettimeofday(&t5, NULL);
     timeKeep4 += (float)((t5.tv_sec - t4.tv_sec) * 1000 + ((float)t5.tv_usec - t4.tv_usec) / 1000);
     runCount4++;
