@@ -299,7 +299,7 @@ void beamFormer(float *bfInReal, float *bfInImag, float *bfOutReal, float *bfOut
     for (int i = 0; i < numLoops; i++)
     {
 
-        cout << "Processing data block : " << i << endl;
+        //cout << "Processing data block : " << i << endl;
 
         for (int c = 0; c < CORES; c++)
             done[c] = 0;
@@ -344,8 +344,9 @@ void beamFormer(float *bfInReal, float *bfInImag, float *bfOutReal, float *bfOut
                         }
                         else
                         {
-                            //cout << "Status from core " << r * NCOLS + c << " : " << done[r * NCOLS + c] << endl;
                             allDone += done[r * NCOLS + c];
+                            //cout << "Status from core " << r * NCOLS + c << " : " << done[r * NCOLS + c] << endl;
+                            //cout << "all Done : " << allDone << endl ;
                         }
                     }
                 }
@@ -373,6 +374,125 @@ void beamFormer(float *bfInReal, float *bfInImag, float *bfOutReal, float *bfOut
     }
 }
 
+/*************************************************************************************************************************************/
+
+int writeDataToEpipahnyFILTER(float *inSig, float *filtSig, float *filtCoeff)
+{
+    int coreId, offset;
+
+    unsigned int done = PROCESS_FILTER;
+
+    for (int r = 0; r < NROWS; r++)
+    {
+        for (int c = 0; c < NCOLS; c++)
+        {
+
+            coreId = r * NCOLS + c;
+            offset = 0x2500;
+
+            if (e_write(&dev, r, c, offset, (const void *)&inSig[FILTERWINDOW * coreId], FILTERWINDOW * sizeof(float)) == E_ERR)
+            {
+                cout << "ERROR : Failed to write data to device memory" << endl;
+                return 1;
+            }
+
+            offset = 0x7000;
+
+            if (e_write(&dev, r, c, offset, (const void *)filtCoeff, (numTaps + 1) * sizeof(float)) == E_ERR)
+            {
+                cout << "ERROR : Failed to write data to device memory" << endl;
+                return 1;
+            }
+
+            if (e_write(&dev, r, c, 0x7500, (const void *)&done, sizeof(done)) == E_ERR)
+            {
+                cout << "ERROR : Failed to write data to eCPU memory" << endl;
+                return 1;
+            }
+
+
+        }
+    }
+
+    return 0;
+}
+
+/*************************************************************************************************************************************/
+
+void filterSignal(float *inSig, float *filtSig, float *filtCoeff, int numSamples)
+{
+    unsigned int done[CORES], allDone = 0;
+
+    if (writeDataToEpipahnyFILTER(inSig, filtSig, filtCoeff))
+    {
+        cout << "ERROR : Failed to write data to shared memory" << endl;
+    }
+
+    // Run program on cores
+    for (int r = 0; r < NROWS; r++)
+    {
+        for (int c = 0; c < NCOLS; c++)
+        {
+            if (e_signal(&dev, r, c) != E_OK)
+            {
+                std::cout << "ERROR : Failed to start program on epipahny core " << std::endl;
+            }
+        }
+    }
+
+
+    allDone = 0;
+
+    while (1)
+    {
+        for (int r = 0; r < NROWS; r++)
+        {
+            for (int c = 0; c < NCOLS; c++)
+            {
+                if (done[r * NCOLS + c] != PROCESS_COMPLETE)
+                {
+                    if (e_read(&dev, r, c, 0x7500, &done[r * NCOLS + c], sizeof(int)) == E_ERR)
+                    {
+                        cout << "ERROR : Failed to read data from device memory" << endl;
+                    }
+                    else
+                    {
+                        
+                        allDone += done[r * NCOLS + c];
+                        cout << "Status from core " << r * NCOLS + c << " : " << done[r * NCOLS + c] << endl;
+                        cout << "all Done : " << allDone << endl ;
+                    }
+                }
+            }
+        }
+
+        if (allDone == CORES)
+        {
+            allDone = 0;
+            break;
+        }
+        else
+        {
+            //cout << "all Done : " << allDone << endl ;
+            usleep(10);
+        }
+    }
+
+    int coreId;
+    for (int r = 0; r < NROWS; r++)
+    {
+        for (int c = 0; c < NCOLS; c++)
+        {
+            coreId = r * NCOLS + c;
+            if (e_read(&dev, r, c, 0x5000 , (void *)&filtSig[FILTERWINDOW * coreId], FILTERWINDOW * sizeof(float)) == E_ERR)
+            {
+                cout << "ERROR : Failed to read filtered data from device memory" << endl;
+            }
+        }
+    }
+
+
+}
 /*************************************************************************************************************************************/
 
 void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, fftwf_complex *analyticData)
@@ -411,21 +531,24 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
 
 
 
-    std::fstream bfoFile("bfo_opt_cpp.txt", std::ios_base::out);
+    //std::fstream bfoFile("bfo_opt_cpp.txt", std::ios_base::out);
 
     //BandPass the signal and find the frequency to be used for beamforming
 
     for (int i = 0; i < NUMCHANNELS; i++)
     {
 
-        cout << "Processing data from channel : " << i << endl;
+        //cout << "Processing data from channel : " << i << endl;
         for (int j = 0; j < numSamples; j++)
             curData[i][j] = data[i + j * NUMCHANNELS];
 
+        //cout<<"Starting filtering process .... "<<endl;
         tick();
         filt.filter(filtData, firCoeff, numTaps + 1, &curData[i][0], numSamples);
+        //filterSignal(&curData[i][0], filtData, firCoeff, numSamples);
         timeKeep1 += tock();
         runCount1++;
+        //cout<<"Finished filtering process .... "<<endl;
 
 
         if (i == 0)
@@ -508,7 +631,7 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
         for (int b = 0; b < NUMANGLES; b++)
         {
             tempVal = 20 * log10(sqrt(bfOutReal[NUMANGLES * a + b] * bfOutReal[NUMANGLES * a + b] + bfOutImag[NUMANGLES * a + b] * bfOutImag[NUMANGLES * a + b]));
-            bfoFile << tempVal << endl;
+            //bfoFile << tempVal << endl;
             if (tempVal > maxVal)
             {
                 maxVal = tempVal;
@@ -522,7 +645,7 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
 
     cout << "Max power detected at : " << rad2deg(angles[angleIdx]) << " degrees at time : " << numCalls + ((float)(SKIP_RATE * timeIdx) / Fs) << " secs for frequency  : " << freqBF << endl;
 
-    bfoFile.close();
+    //bfoFile.close();
 
 
 }

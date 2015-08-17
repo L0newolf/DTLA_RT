@@ -38,6 +38,25 @@ static int getCoreNum( e_coreid_t coreid )
   return coreNum;
 }
 
+void filter (float *filtSig,float *filtCoeff,int filtLen,float *inSig)
+{
+
+  float tmp =0;
+  int j,k,i;
+
+  for( k=0;k<FILTERWINDOW;k++)
+  {
+      for( i=0;i<filtLen;i++)
+      {
+          j=k-i;
+          if(j>0)
+            tmp += filtCoeff[i]*inSig[j];
+      }
+      filtSig[k] = tmp;
+  }
+
+}
+
 int main(void)
 
 {
@@ -50,6 +69,10 @@ int main(void)
   int *done,*loopCount;
   float *bfInReal,*bfInImag,*freqBF,*angles,*sinValAngles,*cosValAngles,*sinValChannels,*cosValChannels;
   float temp1_real,temp1_imag,temp2_real,temp2_imag,temp3_real,temp3_imag,temp4_real,temp4_imag;
+
+  //Signal filtering specific variables
+  float *inSig,*filtCoeff,*filtSig;
+  int *numSamples;
 
   epc_init();
 
@@ -133,7 +156,26 @@ int main(void)
 
       (*(done)) = PROCESS_COMPLETE;
     }
+    else//if((*(done)) == PROCESS_FILTER)
+    {
+      ptr = 0x2500;
+      inSig = (float *)ptr;
+
+      ptr = 0x5000;
+      filtSig = (float *)ptr;
+
+      ptr = 0x7000;
+      filtCoeff = (float *)ptr;
+      ptr += (numTaps+1)*sizeof(float);
+
+      filter (filtSig,filtCoeff,numTaps+1,inSig);
+
+      (*(done)) = PROCESS_COMPLETE;
+
+    }
     
+
+
   }
 
   return EXIT_SUCCESS;
