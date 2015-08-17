@@ -43,52 +43,15 @@ int main(void)
 {
   float *pmemBfoReal, *pmemBfoImag;
   void *src, *dst;
-
-  int *done, *loopCount;
-  float *bfInReal;
-  float *bfInImag;
-  float *freqBF;
-  float *angles;
-  float *sinValAngles;
-  float *cosValAngles;
-  float *sinValChannels;
-  float *cosValChannels;
-
-  float temp1_real;
-  float temp1_imag;
-
-  float temp2_real;
-  float temp2_imag;
-
-  float temp3_real;
-  float temp3_imag;
-
-  float temp4_real;
-  float temp4_imag;
-
+  unsigned int ptr;
   int i, j, k, a;
+
+  //Beamforming specific variables
+  int *done,*loopCount;
+  float *bfInReal,*bfInImag,*freqBF,*angles,*sinValAngles,*cosValAngles,*sinValChannels,*cosValChannels;
+  float temp1_real,temp1_imag,temp2_real,temp2_imag,temp3_real,temp3_imag,temp4_real,temp4_imag;
+
   epc_init();
-
-  unsigned int ptr = 0x2000;
-  bfInReal = (float *)ptr;
-  ptr += WINDOWPERCORE * NUMCHANNELS * sizeof(float);
-  bfInImag = (float *)ptr;;
-  ptr += WINDOWPERCORE * NUMCHANNELS * sizeof(float);
-  angles = (float *)ptr;;
-  ptr += NUMANGLES * sizeof(float);
-  loopCount = (int *)ptr;
-  ptr += sizeof(int);
-
-  ptr = 0x2500;
-  sinValChannels = (float *)ptr;
-  ptr += NUMCHANNELS * WINDOWPERCORE * sizeof(float);
-  cosValChannels = (float *)ptr;
-  ptr += NUMCHANNELS * WINDOWPERCORE * sizeof(float);
-  sinValAngles = (float *)ptr;
-  ptr += NUMCHANNELS * NUMANGLES * sizeof(float);
-  cosValAngles = (float *)ptr;
-  ptr += NUMCHANNELS * NUMANGLES * sizeof(float);
-
 
   done = (int *)0x7500;
 
@@ -103,48 +66,74 @@ int main(void)
     epc_wait();
     e_irq_set(0, 0, E_USER_INT);
 
-    for (j = 0; j < WINDOWPERCORE * NUMANGLES; j++)
+    if ((*(done)) == PROCESS_BEAMFORM)
     {
-      bfOutReal[j] = 0.0;
-      bfOutImag[j] = 0.0;
-    }
 
-    for (k = 0; k < WINDOWPERCORE; k++)
-    {
-      for (j = 0; j < NUMCHANNELS; j++)
+      ptr = 0x2000;
+      bfInReal = (float *)ptr;
+      ptr += WINDOWPERCORE * NUMCHANNELS * sizeof(float);
+      bfInImag = (float *)ptr;;
+      ptr += WINDOWPERCORE * NUMCHANNELS * sizeof(float);
+      angles = (float *)ptr;;
+      ptr += NUMANGLES * sizeof(float);
+      loopCount = (int *)ptr;
+      ptr += sizeof(int);
+
+      ptr = 0x2500;
+      sinValChannels = (float *)ptr;
+      ptr += NUMCHANNELS * WINDOWPERCORE * sizeof(float);
+      cosValChannels = (float *)ptr;
+      ptr += NUMCHANNELS * WINDOWPERCORE * sizeof(float);
+      sinValAngles = (float *)ptr;
+      ptr += NUMCHANNELS * NUMANGLES * sizeof(float);
+      cosValAngles = (float *)ptr;
+      ptr += NUMCHANNELS * NUMANGLES * sizeof(float);
+
+
+      for (j = 0; j < WINDOWPERCORE * NUMANGLES; j++)
       {
+        bfOutReal[j] = 0.0;
+        bfOutImag[j] = 0.0;
+      }
 
-        temp1_real = cosValChannels[NUMCHANNELS * k + j];
-        temp1_imag = sinValChannels[NUMCHANNELS * k + j];
-
-        temp2_real = bfInReal[NUMCHANNELS * k + j] * temp1_real - bfInImag[NUMCHANNELS * k + j] * temp1_imag;
-        temp2_imag = bfInReal[NUMCHANNELS * k + j] * temp1_imag + bfInImag[NUMCHANNELS * k + j] * temp1_real;
-
-        for (a = 0; a < NUMANGLES; a++)
+      for (k = 0; k < WINDOWPERCORE; k++)
+      {
+        for (j = 0; j < NUMCHANNELS; j++)
         {
 
-          temp3_real = sinValAngles[NUMANGLES * j + a];
-          temp3_imag = cosValAngles[NUMANGLES * j + a];
+          temp1_real = cosValChannels[NUMCHANNELS * k + j];
+          temp1_imag = sinValChannels[NUMCHANNELS * k + j];
 
-          temp4_real = temp2_real * temp3_real + temp2_imag * temp3_imag;
-          temp4_imag = -temp2_real * temp3_imag + temp2_imag * temp3_real;
+          temp2_real = bfInReal[NUMCHANNELS * k + j] * temp1_real - bfInImag[NUMCHANNELS * k + j] * temp1_imag;
+          temp2_imag = bfInReal[NUMCHANNELS * k + j] * temp1_imag + bfInImag[NUMCHANNELS * k + j] * temp1_real;
 
-          bfOutReal[NUMANGLES * k + a] += temp4_real;
-          bfOutImag[NUMANGLES * k + a] += temp4_imag;
+          for (a = 0; a < NUMANGLES; a++)
+          {
+
+            temp3_real = sinValAngles[NUMANGLES * j + a];
+            temp3_imag = cosValAngles[NUMANGLES * j + a];
+
+            temp4_real = temp2_real * temp3_real + temp2_imag * temp3_imag;
+            temp4_imag = -temp2_real * temp3_imag + temp2_imag * temp3_real;
+
+            bfOutReal[NUMANGLES * k + a] += temp4_real;
+            bfOutImag[NUMANGLES * k + a] += temp4_imag;
+          }
         }
       }
+
+      dst = (void *)pmemBfoReal;
+      src = (void *)bfOutReal;
+      e_memcopy(dst, src, sizeBuf);
+
+      dst = (void *)pmemBfoImag;
+      src = (void *)bfOutImag;
+      e_memcopy(dst, src, sizeBuf);
+
+
+      (*(done)) = PROCESS_COMPLETE;
     }
-
-    dst = (void *)pmemBfoReal;
-    src = (void *)bfOutReal;
-    e_memcopy(dst, src, sizeBuf);
-
-    dst = (void *)pmemBfoImag;
-    src = (void *)bfOutImag;
-    e_memcopy(dst, src, sizeBuf);
-
-
-    (*(done)) = 0x00000001;
+    
   }
 
   return EXIT_SUCCESS;

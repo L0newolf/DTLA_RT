@@ -26,3 +26,7 @@
 #define lambda 0.7
 
 #define SKIP_RATE 2
+
+#define PROCESS_BEAMFORM 0x00000000
+#define PROCESS_FILTER	 0x00000002
+#define PROCESS_COMPLETE 0x00000001 	 	

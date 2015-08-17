@@ -203,11 +203,11 @@ int eFree(void)
 }
 /*************************************************************************************************************************************/
 
-int writeDataToEpipahny(float *bfInReal, float *bfInImag, int freqBF, int loopCount)
+int writeDataToEpipahnyBF(float *bfInReal, float *bfInImag, int freqBF, int loopCount)
 {
     int coreId, offset;
 
-    unsigned int done = 0x00000000;
+    unsigned int done = PROCESS_BEAMFORM;
 
     for (int r = 0; r < NROWS; r++)
     {
@@ -299,14 +299,14 @@ void beamFormer(float *bfInReal, float *bfInImag, float *bfOutReal, float *bfOut
     for (int i = 0; i < numLoops; i++)
     {
 
-        //cout << "Processing data block : " << i << endl;
+        cout << "Processing data block : " << i << endl;
 
         for (int c = 0; c < CORES; c++)
             done[c] = 0;
 
         // write to memeory
         tick();
-        if (writeDataToEpipahny(bfInReal, bfInImag, freqBF, i))
+        if (writeDataToEpipahnyBF(bfInReal, bfInImag, freqBF, i))
         {
             cout << "ERROR : Failed to write data to shared memory" << endl;
         }
