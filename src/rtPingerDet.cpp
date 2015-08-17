@@ -40,12 +40,7 @@ extern e_platform_t e_platform;
 
 float angles[NUMANGLES];
 float sinAngles[NUMANGLES];
-/*
-float sinValsAngles[nFFT][NUMANGLES][NUMCHANNELS];
-float cosValsAngles[nFFT][NUMANGLES][NUMCHANNELS];
-float sinValsChannels[nFFT][WINDOWPERCORE][NUMCHANNELS];
-float cosValsChannels[nFFT][WINDOWPERCORE][NUMCHANNELS];
-*/
+
 float sinValsAngles[nFFT][NUMANGLES * NUMCHANNELS];
 float cosValsAngles[nFFT][NUMANGLES * NUMCHANNELS];
 float sinValsChannels[nFFT][WINDOWPERCORE * NUMCHANNELS];
@@ -247,37 +242,45 @@ int writeDataToEpipahny(float *bfInReal, float *bfInImag, int freqBF, int loopCo
             }
             offset += sizeof(int);
 
-            offset = 0x2500;
 
-            if (e_write(&dev, r, c, offset, (const void *)&sinValsChannels[freqBF][0], NUMCHANNELS * WINDOWPERCORE * sizeof(float)) == E_ERR) {
-                cout << "ERROR : Failed to write data to device memory" << endl;
-                return 1;
-            }
-            offset += NUMCHANNELS * WINDOWPERCORE * sizeof(float);
 
-            if (e_write(&dev, r, c, offset, (const void *)&cosValsChannels[freqBF][0], NUMCHANNELS * WINDOWPERCORE * sizeof(float)) == E_ERR) {
-                cout << "ERROR : Failed to write data to device memory" << endl;
-                return 1;
-            }
-            offset += NUMCHANNELS * WINDOWPERCORE * sizeof(float);
+            if (loopCount == 0)
+            {
+                offset = 0x2500;
 
-            if (e_write(&dev, r, c, offset, (const void *)&sinValsAngles[freqBF][0], NUMCHANNELS * NUMANGLES * sizeof(float)) == E_ERR) {
-                cout << "ERROR : Failed to write data to device memory" << endl;
-                return 1;
-            }
-            offset += NUMCHANNELS * NUMANGLES * sizeof(float);
+                if (e_write(&dev, r, c, offset, (const void *)&sinValsChannels[freqBF][0], NUMCHANNELS * WINDOWPERCORE * sizeof(float)) == E_ERR) {
+                    cout << "ERROR : Failed to write data to device memory" << endl;
+                    return 1;
+                }
+                offset += NUMCHANNELS * WINDOWPERCORE * sizeof(float);
 
-            if (e_write(&dev, r, c, offset, (const void *)&cosValsAngles[freqBF][0], NUMCHANNELS * NUMANGLES * sizeof(float)) == E_ERR) {
-                cout << "ERROR : Failed to write data to device memory" << endl;
-                return 1;
+                if (e_write(&dev, r, c, offset, (const void *)&cosValsChannels[freqBF][0], NUMCHANNELS * WINDOWPERCORE * sizeof(float)) == E_ERR) {
+                    cout << "ERROR : Failed to write data to device memory" << endl;
+                    return 1;
+                }
+                offset += NUMCHANNELS * WINDOWPERCORE * sizeof(float);
+
+                if (e_write(&dev, r, c, offset, (const void *)&sinValsAngles[freqBF][0], NUMCHANNELS * NUMANGLES * sizeof(float)) == E_ERR) {
+                    cout << "ERROR : Failed to write data to device memory" << endl;
+                    return 1;
+                }
+                offset += NUMCHANNELS * NUMANGLES * sizeof(float);
+
+                if (e_write(&dev, r, c, offset, (const void *)&cosValsAngles[freqBF][0], NUMCHANNELS * NUMANGLES * sizeof(float)) == E_ERR) {
+                    cout << "ERROR : Failed to write data to device memory" << endl;
+                    return 1;
+                }
+                offset += NUMCHANNELS * NUMANGLES * sizeof(float);
             }
-            offset += NUMCHANNELS * NUMANGLES * sizeof(float);
+
+
 
             if (e_write(&dev, r, c, 0x7500, (const void *)&done, sizeof(done)) == E_ERR)
             {
                 cout << "ERROR : Failed to write data to eCPU memory" << endl;
                 return 1;
             }
+
 
         }
     }
@@ -303,7 +306,7 @@ void beamFormer(float *bfInReal, float *bfInImag, float *bfOutReal, float *bfOut
 
         // write to memeory
         tick();
-        if (writeDataToEpipahny(bfInReal,bfInImag,freqBF,i))
+        if (writeDataToEpipahny(bfInReal, bfInImag, freqBF, i))
         {
             cout << "ERROR : Failed to write data to shared memory" << endl;
         }
