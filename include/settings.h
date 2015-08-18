@@ -17,7 +17,7 @@
 #define nFFT 512
 #define numOverlap 128
 
-#define numTaps 128
+#define numTaps 64
 #define freqUpper 3200
 #define freqLower 2800
 #define beta 3.6

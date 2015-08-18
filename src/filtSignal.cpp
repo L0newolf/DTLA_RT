@@ -7,7 +7,7 @@
 
 using namespace std;
 
-#define NUM_THREADS 1
+#define NUM_THREADS 2
 
 struct thread_data {
   float *outSig;

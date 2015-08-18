@@ -60,7 +60,7 @@ void filter (float *filtSig,float *filtCoeff,int filtLen,float *inSig)
 int main(void)
 
 {
-  float *pmemBfoReal, *pmemBfoImag;
+  float *pmemBfoReal, *pmemBfoImag, *filtOpt;
   void *src, *dst;
   unsigned int ptr;
   int i, j, k, a;
@@ -83,6 +83,7 @@ int main(void)
 
   pmemBfoReal = (float *) (e_emem_config.base + 0x00000000 + coreNum * sizeBuf );
   pmemBfoImag = (float *) (e_emem_config.base + 0x00100000 + coreNum * sizeBuf );
+  filtOpt = (float *) (e_emem_config.base + 0x00200000 + coreNum * FILTERWINDOW*sizeof(float) );
 
   while (1)
   {
@@ -91,7 +92,7 @@ int main(void)
 
     if ((*(done)) == PROCESS_BEAMFORM)
     {
-
+      
       ptr = 0x2000;
       bfInReal = (float *)ptr;
       ptr += WINDOWPERCORE * NUMCHANNELS * sizeof(float);
@@ -156,8 +157,9 @@ int main(void)
 
       (*(done)) = PROCESS_COMPLETE;
     }
-    else//if((*(done)) == PROCESS_FILTER)
+    else //if((*(done)) == PROCESS_FILTER)
     {
+      
       ptr = 0x2500;
       inSig = (float *)ptr;
 
@@ -169,6 +171,10 @@ int main(void)
       ptr += (numTaps+1)*sizeof(float);
 
       filter (filtSig,filtCoeff,numTaps+1,inSig);
+
+      dst = (void *)filtOpt;
+      src = (void *)filtSig;
+      e_memcopy(dst, src, FILTERWINDOW*sizeof(float));
 
       (*(done)) = PROCESS_COMPLETE;
 
