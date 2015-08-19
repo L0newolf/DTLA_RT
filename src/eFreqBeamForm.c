@@ -146,14 +146,22 @@ int main(void)
         }
       }
 
+
+      for (k = 0; k < WINDOWPERCORE * NUMANGLES; k++)
+      {
+            bfOutReal[k] = (bfOutReal[k]*bfOutReal[k] + bfOutImag[k]*bfOutImag[k]);
+      }
+      
+
       dst = (void *)pmemBfoReal;
       src = (void *)bfOutReal;
       e_memcopy(dst, src, sizeBuf);
 
+      /*
       dst = (void *)pmemBfoImag;
       src = (void *)bfOutImag;
       e_memcopy(dst, src, sizeBuf);
-
+      */
 
       (*(done)) = PROCESS_COMPLETE;
     }
