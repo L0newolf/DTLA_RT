@@ -11,7 +11,11 @@
 #include <unistd.h>
 #include <sys/time.h>
 
+
+
 using namespace std;
+
+//static struct timeval t2, t3;
 
 void hilbertTrans::hibFunc(float *inSig, fftwf_complex *outSig, int numSamples, float scale)
 {
@@ -32,9 +36,14 @@ void hilbertTrans::hibFunc(float *inSig, fftwf_complex *outSig, int numSamples, 
     p = fftwf_plan_dft_1d(numSamples, xr, xi, FFTW_FORWARD, FFTW_ESTIMATE);
     q = fftwf_plan_dft_1d(numSamples, xi, outSig, FFTW_BACKWARD, FFTW_ESTIMATE);
 
-
     fftwf_execute(p);
 
+    /*
+    gettimeofday(&t2, NULL);
+    fftwf_execute(p);
+    gettimeofday(&t3, NULL);
+    cout<<"Time to fwd fft : "<<(float)((t3.tv_sec - t2.tv_sec) * 1000 + ((float)t3.tv_usec - t2.tv_usec) / 1000)<<endl;
+    */
     for (int i = 0; i < numSamples; i++)
     {
         if(i<numSamples/2)
@@ -51,7 +60,13 @@ void hilbertTrans::hibFunc(float *inSig, fftwf_complex *outSig, int numSamples, 
     }
 
     fftwf_execute(q);
-
+    
+    /*
+    gettimeofday(&t2, NULL);
+    fftwf_execute(q);
+    gettimeofday(&t3, NULL);
+    cout<<"Time to bkwd fft : "<<(float)((t3.tv_sec - t2.tv_sec) * 1000 + ((float)t3.tv_usec - t2.tv_usec) / 1000)<<endl;
+    */
     fftwf_destroy_plan(p);
     fftwf_destroy_plan(q);
     fftwf_free(xi);

@@ -518,6 +518,7 @@ void filterSignal(float *inSig, float *filtSig, float *filtCoeff, int numSamples
 void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, fftwf_complex *analyticData)
 {
 
+
     //Objects
     //filtSignal filt;
     findSigFreq freqDetector;
@@ -527,6 +528,8 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
     int samplesToUse = (int)(numSamples / SKIP_RATE);
     float curData[NUMCHANNELS][numSamples];
 
+    
+
     float *bfOutReal = new float [samplesToUse * NUMANGLES];
     float *bfOutImag = new float [samplesToUse * NUMANGLES];
 
@@ -534,24 +537,21 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
     float *bfInImag = new float [samplesToUse * NUMANGLES];
     //
 
+    
 
     int freqBF = 0.0;
     int freqDet = 0;
     float maxPow = 0.0;
     int freqIdx = 0;
-    float filtData[numSamples];
+    float *filtData = new float [numSamples];
 
-
+    //cout<<"Starting beamforming ... "<<endl;
 
     for (int j = 0; j < samplesToUse * NUMANGLES; j++)
     {
         bfOutReal[j] = 1;
         bfOutImag[j] = 1;
     }
-
-
-
-
 
     //BandPass the signal and find the frequency to be used for beamforming
 
@@ -619,6 +619,8 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
             }
         }
 
+        samplesToUse = 8192;
+
         tick();
         hib.sigAnalytic(filtDataToUse, analyticData, samplesToUse);
         timeKeep3 += tock();
@@ -648,7 +650,7 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
     int timeIdx = 0;
     float tempVal = 0.0;
 
-    std::fstream bfoFile("bfo_opt_cpp.txt", std::ios_base::out);
+    //std::fstream bfoFile("bfo_opt_cpp.txt", std::ios_base::out);
 
     tick();
     for (int a = 0; a < samplesToUse; a++)
@@ -656,7 +658,7 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
         for (int b = 0; b < NUMANGLES; b++)
         {
             tempVal = 25 * log10(sqrt(bfOutReal[NUMANGLES * a + b]));//20 * log10(sqrt(bfOutReal[NUMANGLES * a + b] * bfOutReal[NUMANGLES * a + b] + bfOutImag[NUMANGLES * a + b] * bfOutImag[NUMANGLES * a + b]));
-            bfoFile << tempVal << endl;
+            //bfoFile << tempVal << endl;
             if (tempVal > maxVal)
             {
                 maxVal = tempVal;
@@ -670,7 +672,13 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
 
     cout << "Max power detected at : " << rad2deg(angles[angleIdx]) << " degrees at time : " << numCalls + ((float)(SKIP_RATE * timeIdx) / Fs) << " secs for frequency  : " << freqBF << endl;
 
-    bfoFile.close();
+    //bfoFile.close();
+
+    delete bfOutReal ;
+    delete bfOutImag ;
+    delete bfInReal ;
+    delete bfInImag ;
+    delete filtData;
 
 
 }
@@ -682,7 +690,7 @@ int main()
 {
     /* READ SIGNAL VALUES*/
 
-    int numSecs = 1;
+    int numSecs = 100;
     int a = 24038 * numSecs;
     float durPerBlock = 1.0;
     int samplesPerBlock = floor(Fs * durPerBlock);
@@ -714,22 +722,17 @@ int main()
 
     std::fstream sigFile("sig.txt", std::ios_base::in);
 
-    for (int k = 0; k < 10; k++)
+    for (int j = 0; j < NUMCHANNELS * samplesPerBlock; j++)
+        sigFile >> curSig[j];
+
+    for (int i = 0; i < numLoops; i++)
     {
-        for (int i = 0; i < numLoops; i++)
-        {
-
-            cout << "Processing time stamp : " << i << " secs " << endl;
-
-            for (int j = 0; j < NUMCHANNELS * samplesPerBlock; j++)
-                sigFile >> curSig[j];
-
-            gettimeofday(&t2, NULL);
-            detectPinger.detectPingerPos(curSig, samplesPerBlock, firCoeff, analyticData);
-            gettimeofday(&t3, NULL);
-            timeKeep += (float)((t3.tv_sec - t2.tv_sec) * 1000 + ((float)t3.tv_usec - t2.tv_usec) / 1000);
-            runCount++;
-        }
+        cout << "Processing time stamp : " << i << " secs " << endl;
+        gettimeofday(&t2, NULL);
+        detectPinger.detectPingerPos(curSig, samplesPerBlock, firCoeff, analyticData);
+        gettimeofday(&t3, NULL);
+        timeKeep += (float)((t3.tv_sec - t2.tv_sec) * 1000 + ((float)t3.tv_usec - t2.tv_usec) / 1000);
+        runCount++;
     }
     /*************************************************************************************************************************************/
     cout << endl;
