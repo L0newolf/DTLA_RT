@@ -386,7 +386,6 @@ void beamFormer(float *bfInReal, float *bfInImag, float *bfOutReal, float *bfOut
 
         tick();
         e_read(pbfoRealERAM , 0, 0, (off_t) 0,  (void *)&bfOutReal[CORES * WINDOWPERCORE * NUMANGLES * i], CORES * WINDOWPERCORE * NUMANGLES * sizeof(float));
-        //e_read(pbfoImagERAM , 0, 0, (off_t) 0,  (void *)&bfOutImag[CORES * WINDOWPERCORE * NUMANGLES * i], CORES * WINDOWPERCORE * NUMANGLES * sizeof(float));
         timeKeep7 += tock();
         runCount7++;
     }
@@ -528,7 +527,7 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
     int samplesToUse = (int)(numSamples / SKIP_RATE);
     float curData[NUMCHANNELS][numSamples];
 
-    
+
 
     float *bfOutReal = new float [samplesToUse * NUMANGLES];
     float *bfOutImag = new float [samplesToUse * NUMANGLES];
@@ -537,7 +536,7 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
     float *bfInImag = new float [samplesToUse * NUMANGLES];
     //
 
-    
+
 
     int freqBF = 0.0;
     int freqDet = 0;
@@ -646,7 +645,6 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
 
 
     float maxVal = 0.0;
-    int angleIdx = 0;
     int timeIdx = 0;
     float tempVal = 0.0;
 
@@ -657,20 +655,43 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
     {
         for (int b = 0; b < NUMANGLES; b++)
         {
-            tempVal = 25 * log10(sqrt(bfOutReal[NUMANGLES * a + b]));//20 * log10(sqrt(bfOutReal[NUMANGLES * a + b] * bfOutReal[NUMANGLES * a + b] + bfOutImag[NUMANGLES * a + b] * bfOutImag[NUMANGLES * a + b]));
+            tempVal = 25 * log10(sqrt(bfOutReal[NUMANGLES * a + b]));
             //bfoFile << tempVal << endl;
             if (tempVal > maxVal)
             {
                 maxVal = tempVal;
-                angleIdx = b;
                 timeIdx = a;
             }
         }
     }
+
+    float maxPowers[3] = {0.0, 0.0, 0.0};
+    int angleIdxs[3] = {0, 0, 0};
+
+    for (int b = 0; b < NUMANGLES; b++)
+    {
+        tempVal = 25 * log10(sqrt(bfOutReal[NUMANGLES * timeIdx + b]));
+        if (tempVal > maxPowers[0])
+        {
+            for(int c=2;c>0;c--)
+            {
+                maxPowers[c] = maxPowers[c-1];
+                angleIdxs[c] = angleIdxs[c-1];
+            }
+
+            maxPowers[0] = tempVal;
+            angleIdxs[0] = b;
+        }
+    }
+
     timeKeep8 += tock();
     runCount8++;
 
-    cout << "Max power detected at : " << rad2deg(angles[angleIdx]) << " degrees at time : " << numCalls + ((float)(SKIP_RATE * timeIdx) / Fs) << " secs for frequency  : " << freqBF << endl;
+
+    //cout << "Max power detected at : " << rad2deg(angles[angleIdx]) << " degrees at time : " << numCalls + ((float)(SKIP_RATE * timeIdx) / Fs) << " secs for frequency  : " << freqBF << endl;
+    cout << "Max power detected at : " << rad2deg(angles[angleIdxs[0]]) << " degrees at time : " << numCalls + ((float)(SKIP_RATE * timeIdx) / Fs) << " secs for frequency  : " << freqBF << endl;
+    cout << "Max power detected at : " << rad2deg(angles[angleIdxs[1]]) << " degrees at time : " << numCalls + ((float)(SKIP_RATE * timeIdx) / Fs) << " secs for frequency  : " << freqBF << endl;
+    cout << "Max power detected at : " << rad2deg(angles[angleIdxs[2]]) << " degrees at time : " << numCalls + ((float)(SKIP_RATE * timeIdx) / Fs) << " secs for frequency  : " << freqBF << endl;
 
     //bfoFile.close();
 
@@ -690,7 +711,7 @@ int main()
 {
     /* READ SIGNAL VALUES*/
 
-    int numSecs = 100;
+    int numSecs = 10;
     int a = 24038 * numSecs;
     float durPerBlock = 1.0;
     int samplesPerBlock = floor(Fs * durPerBlock);
