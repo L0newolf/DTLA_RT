@@ -532,8 +532,8 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
     float *bfOutReal = new float [samplesToUse * NUMANGLES];
     float *bfOutImag = new float [samplesToUse * NUMANGLES];
 
-    float *bfInReal = new float [samplesToUse * NUMANGLES];
-    float *bfInImag = new float [samplesToUse * NUMANGLES];
+    float *bfInReal = new float [samplesToUse * NUMCHANNELS];
+    float *bfInImag = new float [samplesToUse * NUMCHANNELS];
     //
 
 
@@ -590,7 +590,7 @@ void rtPingerDet::detectPingerPos(float *data, int numSamples, float *firCoeff, 
             }
 
             freqIdx = (float)((float)freqBF / Fs) * nFFT;
-            cout << "Freq: " << freqDet << " Pow : " << maxPow << " Call: " << numCalls << " Freq BF : " << freqBF << " freq index : " << freqIdx << endl;
+            //cout << "Freq: " << freqDet << " Pow : " << maxPow << " Call: " << numCalls << " Freq BF : " << freqBF << " freq index : " << freqIdx << endl;
 
             timeKeep2 += tock();
             runCount2++;
