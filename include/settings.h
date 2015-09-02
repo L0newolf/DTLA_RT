@@ -25,7 +25,7 @@
 #define powerThreshold 0.1
 #define lambda 0.7
 
-#define SKIP_RATE 2
+#define SKIP_RATE 1
 
 #define FILTERWINDOW 1500
 
